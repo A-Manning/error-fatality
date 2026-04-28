@@ -1,6 +1,8 @@
-use fatality::{fatality, Nested, Split};
+use assert_matches::assert_matches;
+use fatality::{Fatality, Nested, Split};
+use thiserror::Error;
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Yikes {
     #[error("An apple a day")]
     Orange,
@@ -30,8 +32,6 @@ fn i_call_foo_too() -> Result<(), FatalYikes> {
     }
     unreachable!("Variant `Dead` is a `fatal` error. qed");
 }
-
-use assert_matches::assert_matches;
 
 #[test]
 fn test_i_call_foo_errors() {

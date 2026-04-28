@@ -15,7 +15,7 @@
 //! <https://github.com/dtolnay/thiserror/issues/167>
 //! is resolved.
 
-pub use fatality_proc_macro::fatality;
+pub use fatality_proc_macro::{Fatality, Split};
 pub use thiserror;
 
 /// Determine the fatality of an error.

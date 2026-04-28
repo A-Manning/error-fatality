@@ -15,9 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_matches::assert_matches;
-use fatality::{fatality, Fatality, Split};
+use fatality::{Fatality, Split};
+use thiserror::Error;
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Inner {
     #[fatal]
     #[error("That's it.")]
@@ -27,7 +28,7 @@ enum Inner {
     ChuckleOn,
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Kaboom {
     #[fatal(forward)]
     #[error(transparent)]
@@ -45,14 +46,14 @@ fn laughable() -> Result<(), Kaboom> {
     Err(Kaboom::Iffy(Inner::ChuckleOn))
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 #[error(transparent)]
 struct TransparentStructWrapper {
     #[from]
     source: Kaboom,
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 #[error("Struct wrapper")]
 struct StructWrapper {
     source: Kaboom,
@@ -68,11 +69,11 @@ impl From<Kaboom> for StructWrapper {
     }
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 #[error(transparent)]
 struct TransparentTupleStructWrapper(Kaboom);
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 #[error("Tuple struct wrapper")]
 struct TupleStructWrapper(#[source] Kaboom, ());
 
@@ -82,7 +83,7 @@ impl From<Kaboom> for TupleStructWrapper {
     }
 }
 
-#[fatality]
+#[derive(Debug, Error, Fatality)]
 #[error(transparent)]
 #[fatal(forward)]
 struct ForwardWrapper(Kaboom);

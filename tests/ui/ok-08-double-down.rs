@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::{fatality, Fatality, Split};
 use assert_matches::assert_matches;
+use fatality::{Fatality, Split};
+use thiserror::Error;
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Wormhole {
 	#[fatal]
 	#[error("Ice baby")]
@@ -27,7 +28,7 @@ enum Wormhole {
 	Moon,
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Inner {
 	#[fatal(forward)]
     #[error(transparent)]
@@ -38,7 +39,7 @@ enum Inner {
 }
 
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Kaboom {
 	#[fatal(forward)]
     #[error(transparent)]

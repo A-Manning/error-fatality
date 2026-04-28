@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::fatality;
-use fatality::{Fatality, Split};
 use assert_matches::assert_matches;
+use fatality::{Fatality, Split};
+use thiserror::Error;
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Inner {
 	#[fatal]
 	#[error("That's it.")]
@@ -28,7 +28,7 @@ enum Inner {
 	ChuckleOn,
 }
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Kaboom {
 	#[fatal(forward)]
 	#[error("{inner}")]

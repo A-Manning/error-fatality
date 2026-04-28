@@ -169,19 +169,6 @@ fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> T
     }
 }
 
-/// Implement `trait Fatality` for `who`, via a field that impls Fatality,
-/// accessed via `field_proj`
-fn trait_fatality_impl_for_splitable_struct(who: &Ident, field_proj: syn::Member) -> TokenStream {
-    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
-    quote! {
-        impl #fatality_trait for #who {
-            fn is_fatal(&self) -> bool {
-                #fatality_trait :: is_fatal( & self.#field_proj )
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct Transparent(kw::transparent);
@@ -260,8 +247,18 @@ fn to_pattern(
 
     let (pat, resolution) = match fields {
         Fields::Named(fields) => {
-            let (fields, resolution) = match requested_resolution_mode {
-                ResolutionMode::Forward(fwd, _ident) => {
+            let (fields, resolution) = {
+                let (fwd_keyword, _ident) = match &requested_resolution_mode {
+                    ResolutionMode::NoAnnotation => {
+                        let fwd_keyword = kw::forward {
+                            span: requested_resolution_mode.span(),
+                        };
+                        (Some(fwd_keyword), None)
+                    }
+                    ResolutionMode::Forward(keyword, _ident) => (Some(*keyword), Some(_ident)),
+                    _ => (None, None),
+                };
+                if let Some(fwd_keyword) = fwd_keyword {
                     let fwd_field = if is_transparent {
                         fields.named.first().ok_or_else(|| syn::Error::new(fields.span(), "Missing inner field, must have exactly one inner field type, but requires one for `#[fatal(forward)]`."))?
                     } else {
@@ -285,9 +282,9 @@ fn to_pattern(
                             "No field annotated with `#[source]` or `#[from]`, but requires one for `#[fatal(forward)]`.")
                         )?
                     };
-
-                    assert!(matches!(_ident, None));
-
+                    if let Some(_ident) = _ident {
+                        assert!(matches!(_ident, None));
+                    }
                     // let fwd_field = fwd_field.as_ref().unwrap();
                     let field_name = fwd_field
                         .ident
@@ -308,14 +305,17 @@ fn to_pattern(
                     (
                         Punctuated::<FieldPat, Token![,]>::from_iter([fp]),
                         ResolutionMode::Forward(
-                            fwd,
+                            fwd_keyword,
                             fwd_field.ident.clone().map(syn::Member::from),
                         ),
                     )
+                } else {
+                    (
+                        Punctuated::<FieldPat, Token![,]>::new(),
+                        requested_resolution_mode,
+                    )
                 }
-                rm => (Punctuated::<FieldPat, Token![,]>::new(), rm),
             };
-
             (
                 Pat::Struct(PatStruct {
                     attrs: vec![],
@@ -332,67 +332,74 @@ fn to_pattern(
             )
         }
         Fields::Unnamed(fields) => {
-            let (mut field_pats, resolution) = if let ResolutionMode::Forward(keyword, _) =
-                requested_resolution_mode
-            {
-                // obtain the i of the i-th unnamed field.
-                let fwd_idx = if is_transparent {
-                    // must be the only field, otherwise bail
-                    if fields.unnamed.iter().count() != 1 {
-                        return Err(
-							syn::Error::new(
-								fields.span(),
-								"Must have exactly one parameter when annotated with `#[transparent]` annotated field for `forward` with `fatality`",
-							)
-						);
-                    }
-                    0_usize
-                } else {
-                    fields
-                        .unnamed
-                        .iter()
-                        .enumerate()
-                        .find_map(|(idx, field)| {
-                            field
-                                .attrs
-                                .iter()
-                                .find(|attr| {
-                                    attr.path().is_ident(&source) || attr.path().is_ident(&from)
-                                })
-                                .map(|_attr| idx)
-                        })
-                        .ok_or_else(|| {
-                            syn::Error::new(
-										span,
-										"Must have a `#[source]` or `#[from]` annotated field for `#[fatal(forward)]`",
-								)
-                        })?
+            let (mut field_pats, resolution) = {
+                let fwd_keyword = match &requested_resolution_mode {
+                    ResolutionMode::NoAnnotation => Some(kw::forward {
+                        span: requested_resolution_mode.span(),
+                    }),
+                    ResolutionMode::Forward(keyword, _ident) => Some(*keyword),
+                    _ => None,
                 };
+                if let Some(fwd_keyword) = fwd_keyword {
+                    // obtain the i of the i-th unnamed field.
+                    let fwd_idx = if is_transparent {
+                        // must be the only field, otherwise bail
+                        if fields.unnamed.iter().count() != 1 {
+                            return Err(
+                                syn::Error::new(
+                                    fields.span(),
+                                    "Must have exactly one parameter when annotated with `#[transparent]` annotated field for `forward` with `fatality`",
+                                )
+                            );
+                        }
+                        0_usize
+                    } else {
+                        fields
+                            .unnamed
+                            .iter()
+                            .enumerate()
+                            .find_map(|(idx, field)| {
+                                field
+                                    .attrs
+                                    .iter()
+                                    .find(|attr| {
+                                        attr.path().is_ident(&source) || attr.path().is_ident(&from)
+                                    })
+                                    .map(|_attr| idx)
+                            })
+                            .ok_or_else(|| {
+                                syn::Error::new(
+                                            span,
+                                            "Must have a `#[source]` or `#[from]` annotated field for `#[fatal(forward)]`",
+                                    )
+                            })?
+                    };
 
-                let pat_capture_ident =
-                    unnamed_fields_variant_pattern_constructor_binding_name(fwd_idx);
-                // create a pattern like this: `_, _, _, inner, ..`
-                let mut field_pats = std::iter::repeat(Pat::Wild(PatWild {
-                    attrs: vec![],
-                    underscore_token: Token![_](span),
-                }))
-                .take(fwd_idx)
-                .collect::<Vec<_>>();
+                    let pat_capture_ident =
+                        unnamed_fields_variant_pattern_constructor_binding_name(fwd_idx);
+                    // create a pattern like this: `_, _, _, inner, ..`
+                    let mut field_pats = std::iter::repeat(Pat::Wild(PatWild {
+                        attrs: vec![],
+                        underscore_token: Token![_](span),
+                    }))
+                    .take(fwd_idx)
+                    .collect::<Vec<_>>();
 
-                field_pats.push(Pat::Ident(PatIdent {
-                    attrs: vec![],
-                    by_ref: None,
-                    mutability: None,
-                    ident: pat_capture_ident.clone(),
-                    subpat: None,
-                }));
+                    field_pats.push(Pat::Ident(PatIdent {
+                        attrs: vec![],
+                        by_ref: None,
+                        mutability: None,
+                        ident: pat_capture_ident.clone(),
+                        subpat: None,
+                    }));
 
-                (
-                    field_pats,
-                    ResolutionMode::Forward(keyword, Some(fwd_idx.into())),
-                )
-            } else {
-                (vec![], requested_resolution_mode)
+                    (
+                        field_pats,
+                        ResolutionMode::Forward(fwd_keyword, Some(fwd_idx.into())),
+                    )
+                } else {
+                    (vec![], requested_resolution_mode)
+                }
             };
             field_pats.push(Pat::Rest(PatRest {
                 attrs: vec![],
@@ -530,16 +537,11 @@ impl ToTokens for VariantConstructor {
 /// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
 /// `forward_variants` enlists all variants that
 fn trait_split_impl(
-    attr: Attr,
     original: ItemEnum,
     resolution_lut: &IndexMap<Variant, ResolutionMode>,
     jfyi_variants: &[Variant],
     fatal_variants: &[Variant],
 ) -> Result<TokenStream, syn::Error> {
-    if let Attr::Empty = attr {
-        return Ok(TokenStream::new());
-    }
-
     let span = original.span();
 
     let thiserror: Path = parse_quote!(thiserror::Error);
@@ -818,10 +820,8 @@ fn trait_split_struct_impl(
 }
 
 pub(crate) fn fatality_struct_gen(
-    attr: Attr,
     mut item: syn::ItemStruct,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let name = item.ident.clone();
     let mut resolution_mode = ResolutionMode::NoAnnotation;
 
     // remove the `#[fatal]` attribute
@@ -844,105 +844,95 @@ pub(crate) fn fatality_struct_gen(
 
     let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
 
-    // Path to `thiserror`.
-    let thiserror: Path = parse_quote!(thiserror::Error);
-    let thiserror = abs_helper_path(thiserror, name.span());
-
-    let original_struct = quote! {
-        #[derive( #thiserror, Debug)]
-        #item
-    };
-
-    if let Attr::Splitable(kw) = attr {
-        if !matches!(resolution_mode, ResolutionMode::NoAnnotation) {
-            return Err(syn::Error::new(
-                kw.span(),
-                "cannot specify a fatality for splitable structs",
-            ));
-        }
-        if item.fields.is_empty() {
-            return Err(syn::Error::new(
-                kw.span(),
-                "Cannot use `splitable` on a unit `struct`",
-            ));
-        }
-        let Some(source_field_idx) = item
-            .fields
-            .iter()
-            .position(|field| {
-                field.attrs.iter().any(|field_attr| {
-                    matches!(field_attr.style, syn::AttrStyle::Outer)
-                        && field_attr
-                            .meta
-                            .require_path_only()
-                            .is_ok_and(|field_attr_path| {
-                                field_attr_path.is_ident("from")
-                                    || field_attr_path.is_ident("source")
-                            })
-                })
-            })
-            .or_else(|| {
-                item.fields.iter().position(|field| {
-                    field
-                        .ident
-                        .as_ref()
-                        .is_some_and(|field_ident| field_ident == "source")
-                })
-            })
-            .or_else(|| match &item.fields {
-                syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => Some(0),
-                _ => None,
-            })
-        else {
-            return Err(syn::Error::new(
-                kw.span(),
-                "Cannot use `splitable` on a `struct` without a source field",
-            ));
-        };
-        let mut ts = TokenStream::new();
-        ts.extend(original_struct);
-        ts.extend(trait_split_struct_impl(&item, source_field_idx)?);
-        let source_field_ident = item
-            .fields
-            .iter()
-            .nth(source_field_idx)
-            .unwrap()
-            .ident
-            .clone();
-        let source_field_projector: syn::Member = match source_field_ident {
-            Some(ident) => ident.into(),
-            None => source_field_idx.into(),
-        };
-        ts.extend(trait_fatality_impl_for_splitable_struct(
-            &item.ident,
-            source_field_projector,
-        ));
-        return Ok(ts);
-    }
-
-    let mut ts = TokenStream::new();
-    ts.extend(original_struct);
-    ts.extend(trait_fatality_impl_for_struct(
+    Ok(trait_fatality_impl_for_struct(
         &item.ident,
         &resolution_mode,
-    ));
-
-    Ok(ts)
+    ))
 }
 
-pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<TokenStream> {
-    let name = item.ident.clone();
-    let mut original = item.clone();
+pub(crate) fn split_struct_gen(
+    span: proc_macro2::Span,
+    mut item: syn::ItemStruct,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let mut resolution_mode = ResolutionMode::NoAnnotation;
 
+    // remove the `#[fatal]` attribute
+    while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
+        if attr.path().is_ident("fatal") {
+            Some(idx)
+        } else {
+            None
+        }
+    }) {
+        let attr = item.attrs.remove(idx);
+        if let Ok(_) = attr.meta.require_path_only() {
+            // no argument to `#[fatal]` means it's fatal
+            resolution_mode = ResolutionMode::Fatal;
+        } else {
+            // parse whatever was passed to `#[fatal(..)]`.
+            resolution_mode = attr.parse_args::<ResolutionMode>()?;
+        }
+    }
+
+    let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+
+    match resolution_mode {
+        ResolutionMode::Fatal | ResolutionMode::WithExplicitBool(_) => {
+            let err_msg = "cannot specify a fatality for splitable structs";
+            return Err(syn::Error::new(span, err_msg));
+        }
+        ResolutionMode::NoAnnotation => {
+            let err_msg = "splitable structs must have a source field";
+            return Err(syn::Error::new(span, err_msg));
+        }
+        ResolutionMode::Forward(_, _) => (),
+    }
+    if item.fields.is_empty() {
+        let err_msg = "Cannot derive `Split` for a unit struct";
+        return Err(syn::Error::new(span, err_msg));
+    }
+    let Some(source_field_idx) = item
+        .fields
+        .iter()
+        .position(|field| {
+            field.attrs.iter().any(|field_attr| {
+                matches!(field_attr.style, syn::AttrStyle::Outer)
+                    && field_attr
+                        .meta
+                        .require_path_only()
+                        .is_ok_and(|field_attr_path| {
+                            field_attr_path.is_ident("from") || field_attr_path.is_ident("source")
+                        })
+            })
+        })
+        .or_else(|| {
+            item.fields.iter().position(|field| {
+                field
+                    .ident
+                    .as_ref()
+                    .is_some_and(|field_ident| field_ident == "source")
+            })
+        })
+        .or_else(|| match &item.fields {
+            syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => Some(0),
+            _ => None,
+        })
+    else {
+        return Err(syn::Error::new(
+            span,
+            "Cannot use `splitable` on a `struct` without a source field",
+        ));
+    };
+    Ok(trait_split_struct_impl(&item, source_field_idx)?)
+}
+
+pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
     let mut resolution_lut = IndexMap::new();
     let mut pattern_lut = IndexMap::new();
 
-    let mut jfyi_variants = Vec::new();
-    let mut fatal_variants = Vec::new();
-
     // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::fatality::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
-    for variant in original.variants.iter_mut() {
+    for variant in item.variants.iter_mut() {
         let mut resolution_mode = ResolutionMode::NoAnnotation;
 
         // remove the `#[fatal]` attribute
@@ -967,6 +957,52 @@ pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<Token
         let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
         match resolution_mode {
             ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
+            _ => (),
+        }
+        resolution_lut.insert(variant.clone(), resolution_mode);
+        pattern_lut.insert(variant.clone(), pattern);
+    }
+
+    Ok(trait_fatality_impl_for_enum(
+        &item.ident,
+        &pattern_lut,
+        &resolution_lut,
+    ))
+}
+
+pub(crate) fn split_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
+    let mut resolution_lut = IndexMap::new();
+
+    let mut jfyi_variants = Vec::new();
+    let mut fatal_variants = Vec::new();
+
+    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::fatality::thiserror::Error, Debug)]`
+    // without the intermediate type. But impl `trait Fatality` on-top.
+    for variant in item.variants.iter_mut() {
+        let mut resolution_mode = ResolutionMode::NoAnnotation;
+
+        // remove the `#[fatal]` attribute
+        while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
+            if attr.path().is_ident("fatal") {
+                Some(idx)
+            } else {
+                None
+            }
+        }) {
+            let attr = variant.attrs.remove(idx);
+            if let Ok(_) = attr.meta.require_path_only() {
+                resolution_mode = ResolutionMode::Fatal;
+            } else {
+                resolution_mode = attr.parse_args::<ResolutionMode>()?;
+            }
+        }
+
+        // Obtain the patterns for each variant, and the resolution, which can either
+        // be `forward`, `true`, or `false`
+        // as used in the `trait Fatality`.
+        let (_pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
+        match resolution_mode {
+            ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
             ResolutionMode::Forward(_, ref _ident) => {
                 jfyi_variants.push(variant.clone());
                 fatal_variants.push(variant.clone());
@@ -979,57 +1015,7 @@ pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<Token
             ResolutionMode::NoAnnotation => jfyi_variants.push(variant.clone()),
         }
         resolution_lut.insert(variant.clone(), resolution_mode);
-        pattern_lut.insert(variant.clone(), pattern);
     }
 
-    // Path to `thiserror`.
-    let thiserror: Path = parse_quote!(thiserror::Error);
-    let thiserror = abs_helper_path(thiserror, name.span());
-
-    let original_enum = quote! {
-        #[derive( #thiserror, Debug)]
-        #original
-    };
-
-    let mut ts = TokenStream::new();
-    ts.extend(original_enum);
-    ts.extend(trait_fatality_impl_for_enum(
-        &original.ident,
-        &pattern_lut,
-        &resolution_lut,
-    ));
-
-    if let Attr::Splitable(_kw) = attr {
-        ts.extend(trait_split_impl(
-            attr,
-            original,
-            &resolution_lut,
-            &jfyi_variants,
-            &fatal_variants,
-        ));
-    }
-
-    Ok(ts)
-}
-
-/// The declaration of `#[fatality(splitable)]` or `#[fatality]`
-/// outside the `enum AnError`.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Attr {
-    Splitable(kw::splitable),
-    Empty,
-}
-
-impl Parse for Attr {
-    fn parse(content: ParseStream) -> syn::Result<Self> {
-        let lookahead = content.lookahead1();
-
-        if lookahead.peek(kw::splitable) {
-            Ok(Self::Splitable(content.parse::<kw::splitable>()?))
-        } else if content.is_empty() {
-            Ok(Self::Empty)
-        } else {
-            Err(lookahead.error())
-        }
-    }
+    trait_split_impl(item, &resolution_lut, &jfyi_variants, &fatal_variants)
 }

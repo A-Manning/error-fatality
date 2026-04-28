@@ -1,69 +1,123 @@
 error[E0277]: the trait bound `Fatal: Fatality` is not satisfied
-  --> tests/ui/err-03.rs:34:1
+  --> tests/ui/err-03.rs:35:24
    |
-34 | #[fatality(splitable)]
-   | ^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^ unsatisfied trait bound
    |
 help: the trait `Fatality` is not implemented for `Fatal`
-  --> tests/ui/err-03.rs:22:1
+  --> tests/ui/err-03.rs:23:1
    |
-22 | struct Fatal;
+23 | struct Fatal;
    | ^^^^^^^^^^^^
 help: the trait `Fatality` is implemented for `Kaboom`
-  --> tests/ui/err-03.rs:34:1
+  --> tests/ui/err-03.rs:35:24
    |
-34 | #[fatality(splitable)]
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^
+   = note: this error originates in the derive macro `Fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Bobo: Fatality` is not satisfied
+  --> tests/ui/err-03.rs:35:24
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Fatality` is not implemented for `Bobo`
+  --> tests/ui/err-03.rs:33:1
+   |
+33 | struct Bobo;
+   | ^^^^^^^^^^^
+help: the trait `Fatality` is implemented for `Kaboom`
+  --> tests/ui/err-03.rs:35:24
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^
+   = note: this error originates in the derive macro `Fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Fatal: Fatality` is not satisfied
+  --> tests/ui/err-03.rs:35:34
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                                  ^^^^^ unsatisfied trait bound
+   |
+help: the trait `Fatality` is not implemented for `Fatal`
+  --> tests/ui/err-03.rs:23:1
+   |
+23 | struct Fatal;
+   | ^^^^^^^^^^^^
+help: the trait `Fatality` is implemented for `Kaboom`
+  --> tests/ui/err-03.rs:35:24
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^
+   = note: this error originates in the derive macro `Split` which comes from the expansion of the derive macro `Fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Bobo: Fatality` is not satisfied
+  --> tests/ui/err-03.rs:35:34
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                                  ^^^^^ unsatisfied trait bound
+   |
+help: the trait `Fatality` is not implemented for `Bobo`
+  --> tests/ui/err-03.rs:33:1
+   |
+33 | struct Bobo;
+   | ^^^^^^^^^^^
+help: the trait `Fatality` is implemented for `Kaboom`
+  --> tests/ui/err-03.rs:35:24
+   |
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                        ^^^^^^^^
+   = note: this error originates in the derive macro `Split` which comes from the expansion of the derive macro `Fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `?` couldn't convert the error to `Kaboom`
-  --> tests/ui/err-03.rs:45:12
+  --> tests/ui/err-03.rs:46:12
    |
-44 | fn iffy() -> Result<(), Kaboom> {
+45 | fn iffy() -> Result<(), Kaboom> {
    |              ------------------ expected `Kaboom` because of this
-45 |     Err(Fatal)?
+46 |     Err(Fatal)?
    |     ----------^ the trait `From<Fatal>` is not implemented for `Kaboom`
    |     |
    |     this can't be annotated with `?` because it has type `Result<_, Fatal>`
    |
 note: `Kaboom` needs to implement `From<Fatal>`
-  --> tests/ui/err-03.rs:35:1
+  --> tests/ui/err-03.rs:36:1
    |
-35 | enum Kaboom {
+36 | enum Kaboom {
    | ^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
 help: the following other types implement trait `From<T>`
-  --> tests/ui/err-03.rs:34:1
+  --> tests/ui/err-03.rs:35:34
    |
-34 | #[fatality(splitable)]
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | |
-   | `Kaboom` implements `From<FatalKaboom>`
-   | `Kaboom` implements `From<JfyiKaboom>`
-   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                                  ^^^^^
+   |                                  |
+   |                                  `Kaboom` implements `From<FatalKaboom>`
+   |                                  `Kaboom` implements `From<JfyiKaboom>`
+   = note: this error originates in the derive macro `Split` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `?` couldn't convert the error to `Kaboom`
-  --> tests/ui/err-03.rs:49:11
+  --> tests/ui/err-03.rs:50:11
    |
-48 | fn bobo() -> Result<(), Kaboom> {
+49 | fn bobo() -> Result<(), Kaboom> {
    |              ------------------ expected `Kaboom` because of this
-49 |     Err(Bobo)?
+50 |     Err(Bobo)?
    |     ---------^ the trait `From<Bobo>` is not implemented for `Kaboom`
    |     |
    |     this can't be annotated with `?` because it has type `Result<_, Bobo>`
    |
 note: `Kaboom` needs to implement `From<Bobo>`
-  --> tests/ui/err-03.rs:35:1
+  --> tests/ui/err-03.rs:36:1
    |
-35 | enum Kaboom {
+36 | enum Kaboom {
    | ^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
 help: the following other types implement trait `From<T>`
-  --> tests/ui/err-03.rs:34:1
+  --> tests/ui/err-03.rs:35:34
    |
-34 | #[fatality(splitable)]
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | |
-   | `Kaboom` implements `From<FatalKaboom>`
-   | `Kaboom` implements `From<JfyiKaboom>`
-   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+35 | #[derive(Debug, Error, Fatality, Split)]
+   |                                  ^^^^^
+   |                                  |
+   |                                  `Kaboom` implements `From<FatalKaboom>`
+   |                                  `Kaboom` implements `From<JfyiKaboom>`
+   = note: this error originates in the derive macro `Split` (in Nightly builds, run with -Z macro-backtrace for more info)

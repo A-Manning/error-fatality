@@ -14,26 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::fatality;
 use assert_matches::assert_matches;
+use fatality::Fatality;
+use thiserror::Error;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("We tried")]
 struct Fatal;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("Get a dinosaur bandaid")]
 struct Bobo;
 
-#[fatality]
+#[derive(Debug, Error, Fatality)]
 enum Kaboom {
 	#[error(transparent)]
+	#[fatal(false)]
 	Iffy(#[from] Fatal),
 
 	#[error(transparent)]
+	#[fatal(false)]
 	Bobo(#[from] Bobo),
 
 	#[error("Message {0}")]
+	#[fatal(false)]
 	Eh(char),
 }
 

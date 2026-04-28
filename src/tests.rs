@@ -20,7 +20,7 @@ impl Fatality for Y {
     }
 }
 
-#[fatality]
+#[derive(Debug, Fatality, thiserror::Error)]
 enum Acc {
     #[error("0")]
     Zero,

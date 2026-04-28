@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use fatality::{fatality, Fatality};
+use fatality::{Fatality, Split};
+use thiserror::Error;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("We tried")]
 struct FatalX;
 
@@ -26,17 +27,18 @@ impl Fatality for FatalX {
 	}
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("Get a dinosaur bandaid")]
 struct Bobo;
 
-#[fatality(splitable)]
+#[derive(Debug, Error, Fatality, Split)]
 enum Kaboom {
 	#[fatal(forward)]
 	#[error(transparent)]
 	Iffy{#[from] x: FatalX},
 
 	#[error(transparent)]
+	#[fatal(false)]
 	Bobo{#[from] b: Bobo},
 }
 
