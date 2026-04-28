@@ -24,11 +24,12 @@ pub(crate) mod kw {
     syn::custom_keyword!(expand);
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) enum ResolutionMode {
     /// Not relevant for fatality determination, always non-fatal.
     NoAnnotation,
     /// Fatal by default.
+    #[default]
     Fatal,
     /// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
     WithExplicitBool(LitBool),
@@ -54,12 +55,6 @@ impl std::fmt::Debug for ResolutionMode {
                     .unwrap_or_else(|| "___".to_string())
             ),
         }
-    }
-}
-
-impl Default for ResolutionMode {
-    fn default() -> Self {
-        Self::Fatal
     }
 }
 
@@ -218,7 +213,7 @@ fn struct_to_pattern(
 fn to_pattern(
     name: &Ident,
     fields: &Fields,
-    attrs: &Vec<syn::Attribute>,
+    attrs: &[syn::Attribute],
     requested_resolution_mode: ResolutionMode,
 ) -> Result<(Pat, ResolutionMode), syn::Error> {
     let span = fields.span();
@@ -283,7 +278,7 @@ fn to_pattern(
                         )?
                     };
                     if let Some(_ident) = _ident {
-                        assert!(matches!(_ident, None));
+                        assert!(_ident.is_none());
                     }
                     // let fwd_field = fwd_field.as_ref().unwrap();
                     let field_name = fwd_field
@@ -378,11 +373,13 @@ fn to_pattern(
                     let pat_capture_ident =
                         unnamed_fields_variant_pattern_constructor_binding_name(fwd_idx);
                     // create a pattern like this: `_, _, _, inner, ..`
-                    let mut field_pats = std::iter::repeat(Pat::Wild(PatWild {
-                        attrs: vec![],
-                        underscore_token: Token![_](span),
-                    }))
-                    .take(fwd_idx)
+                    let mut field_pats = std::iter::repeat_n(
+                        Pat::Wild(PatWild {
+                            attrs: vec![],
+                            underscore_token: Token![_](span),
+                        }),
+                        fwd_idx,
+                    )
                     .collect::<Vec<_>>();
 
                     field_pats.push(Pat::Ident(PatIdent {
@@ -640,7 +637,7 @@ fn trait_split_impl(
         .map(|variant| {
             let pat = VariantPattern(variant.clone());
             assert!(
-                !matches!(resolution_lut.get(variant), None),
+                resolution_lut.get(variant).is_some(),
                 "Cannot be annotated as fatal when in the JFYI slice. qed"
             );
             pat.into_token_stream()
@@ -833,7 +830,7 @@ pub(crate) fn fatality_struct_gen(
         }
     }) {
         let attr = item.attrs.remove(idx);
-        if let Ok(_) = attr.meta.require_path_only() {
+        if attr.meta.require_path_only().is_ok() {
             // no argument to `#[fatal]` means it's fatal
             resolution_mode = ResolutionMode::Fatal;
         } else {
@@ -865,7 +862,7 @@ pub(crate) fn split_struct_gen(
         }
     }) {
         let attr = item.attrs.remove(idx);
-        if let Ok(_) = attr.meta.require_path_only() {
+        if attr.meta.require_path_only().is_ok() {
             // no argument to `#[fatal]` means it's fatal
             resolution_mode = ResolutionMode::Fatal;
         } else {
@@ -923,7 +920,7 @@ pub(crate) fn split_struct_gen(
             "Cannot use `splitable` on a `struct` without a source field",
         ));
     };
-    Ok(trait_split_struct_impl(&item, source_field_idx)?)
+    trait_split_struct_impl(&item, source_field_idx)
 }
 
 pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
@@ -944,7 +941,7 @@ pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> 
             }
         }) {
             let attr = variant.attrs.remove(idx);
-            if let Ok(_) = attr.meta.require_path_only() {
+            if attr.meta.require_path_only().is_ok() {
                 resolution_mode = ResolutionMode::Fatal;
             } else {
                 resolution_mode = attr.parse_args::<ResolutionMode>()?;
@@ -955,9 +952,8 @@ pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> 
         // be `forward`, `true`, or `false`
         // as used in the `trait Fatality`.
         let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
-        match resolution_mode {
-            ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
-            _ => (),
+        if let ResolutionMode::Forward(_, None) = resolution_mode {
+            unreachable!("Must have an ident. qed")
         }
         resolution_lut.insert(variant.clone(), resolution_mode);
         pattern_lut.insert(variant.clone(), pattern);
@@ -990,7 +986,7 @@ pub(crate) fn split_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
             }
         }) {
             let attr = variant.attrs.remove(idx);
-            if let Ok(_) = attr.meta.require_path_only() {
+            if attr.meta.require_path_only().is_ok() {
                 resolution_mode = ResolutionMode::Fatal;
             } else {
                 resolution_mode = attr.parse_args::<ResolutionMode>()?;

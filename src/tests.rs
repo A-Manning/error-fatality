@@ -43,9 +43,9 @@ enum Acc {
 
 #[test]
 fn all_in_one() {
-    assert_eq!(false, Fatality::is_fatal(&Acc::A(X)));
-    assert_eq!(true, Fatality::is_fatal(&Acc::B(Y)));
-    assert_eq!(false, Fatality::is_fatal(&Acc::Aaaaa(X)));
-    assert_eq!(true, Fatality::is_fatal(&Acc::Bbbbbb(Y)));
-    assert_eq!(false, Fatality::is_fatal(&Acc::Zero));
+    assert!(!Fatality::is_fatal(&Acc::A(X)));
+    assert!(Fatality::is_fatal(&Acc::B(Y)));
+    assert!(!Fatality::is_fatal(&Acc::Aaaaa(X)));
+    assert!(Fatality::is_fatal(&Acc::Bbbbbb(Y)));
+    assert!(!Fatality::is_fatal(&Acc::Zero));
 }
