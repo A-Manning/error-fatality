@@ -7,11 +7,78 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Brace, Paren, PathSep},
-    FieldPat, Fields, ItemEnum, LitBool, Member, Pat, PatIdent, PatPath, PatRest, PatStruct,
-    PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token, Variant,
+    DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat, PatIdent,
+    PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token,
+    Variant,
 };
 
 use proc_macro_crate::{crate_name, FoundCrate};
+
+mod split;
+
+/// Similar to [`syn::DeriveInput`], but specialized to a particular data type
+#[derive(Clone, Debug)]
+pub(crate) struct DeriveInput<Data> {
+    pub attrs: Vec<syn::Attribute>,
+    pub vis: syn::Visibility,
+    pub ident: Ident,
+    pub generics: syn::Generics,
+    pub data: Data,
+}
+
+impl From<syn::DeriveInput> for DeriveInput<syn::Data> {
+    fn from(derive_input: syn::DeriveInput) -> Self {
+        let syn::DeriveInput {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data,
+        } = derive_input;
+        Self {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data,
+        }
+    }
+}
+
+impl From<DeriveInput<DataEnum>> for ItemEnum {
+    fn from(derive_input: DeriveInput<DataEnum>) -> Self {
+        Self {
+            attrs: derive_input.attrs,
+            vis: derive_input.vis,
+            enum_token: derive_input.data.enum_token,
+            ident: derive_input.ident,
+            generics: derive_input.generics,
+            brace_token: derive_input.data.brace_token,
+            variants: derive_input.data.variants,
+        }
+    }
+}
+
+impl From<DeriveInput<DataStruct>> for ItemStruct {
+    fn from(derive_input: DeriveInput<DataStruct>) -> Self {
+        Self {
+            attrs: derive_input.attrs,
+            vis: derive_input.vis,
+            struct_token: derive_input.data.struct_token,
+            ident: derive_input.ident,
+            generics: derive_input.generics,
+            semi_token: derive_input.data.semi_token,
+            fields: derive_input.data.fields,
+        }
+    }
+}
+
+impl Parse for DeriveInput<syn::Data> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let derive_input = syn::DeriveInput::parse(input)?;
+        Ok(derive_input.into())
+    }
+}
 
 pub(crate) mod kw {
     // Variant fatality is determined based on the inner value, if there is only one, if multiple, the first is chosen.
@@ -199,12 +266,12 @@ fn enum_variant_to_pattern(
 }
 
 fn struct_to_pattern(
-    item: &syn::ItemStruct,
+    item: &DeriveInput<DataStruct>,
     requested_resolution_mode: ResolutionMode,
 ) -> Result<(Pat, ResolutionMode), syn::Error> {
     to_pattern(
         &item.ident,
-        &item.fields,
+        &item.data.fields,
         &item.attrs,
         requested_resolution_mode,
     )
@@ -529,37 +596,160 @@ impl ToTokens for VariantConstructor {
     }
 }
 
+/// Construct path segments (without arguments) from idents
+fn path_segments<'a, I>(
+    span: Span,
+    idents: I,
+) -> syn::punctuated::Punctuated<syn::PathSegment, PathSep>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    idents
+        .into_iter()
+        .map(|ident| syn::PathSegment {
+            ident: syn::Ident::new(ident, span),
+            arguments: PathArguments::None,
+        })
+        .collect()
+}
+
+/// Construct path from root, from idents.
+/// ie. `path_from_root(["core", "fmt", "Debug"])` will construct the path
+/// `::core::fmt::Debug`.
+fn path_from_root<'a, I>(span: Span, idents: I) -> syn::Path
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    syn::Path {
+        leading_colon: Some(syn::token::PathSep::default()),
+        segments: path_segments(span, idents),
+    }
+}
+
+/// ::std::fmt::Debug
+fn debug_path_from_root(span: Span) -> syn::Path {
+    path_from_root(span, ["std", "fmt", "Debug"])
+}
+
+/// ::thiserror::Error
+fn thiserror_path_from_root(span: Span) -> syn::Path {
+    path_from_root(span, ["thiserror", "Error"])
+}
+
+/// Default derives for split errors
+fn default_split_derives(span: Span) -> [syn::Path; 2] {
+    [debug_path_from_root(span), thiserror_path_from_root(span)]
+}
+
+/// Construct an outer attribute from attribute content
+fn outer_attr(meta: syn::Meta) -> syn::Attribute {
+    syn::Attribute {
+        pound_token: Default::default(),
+        style: syn::AttrStyle::Outer,
+        bracket_token: Default::default(),
+        meta,
+    }
+}
+
+/// Construct a derive attribute, with the specified derives
+fn derive_attr(span: Span, derives: Punctuated<syn::Meta, syn::Token![,]>) -> syn::Attribute {
+    let meta_path = syn::PathSegment {
+        ident: syn::Ident::new("derive", span),
+        arguments: syn::PathArguments::None,
+    };
+    let meta = syn::Meta::List(syn::MetaList {
+        path: meta_path.into(),
+        delimiter: syn::MacroDelimiter::Paren(syn::token::Paren::default()),
+        tokens: derives.to_token_stream(),
+    });
+    outer_attr(meta)
+}
+
+/// Default derive attr for split errors
+fn default_split_derive_attr(span: Span) -> syn::Attribute {
+    let derives = default_split_derives(span)
+        .into_iter()
+        .map(syn::Meta::Path)
+        .collect();
+    derive_attr(span, derives)
+}
+
+/// Mutably borrow a field by index
+fn get_field_mut(fields: &mut syn::Fields, idx: usize) -> Option<&mut syn::Field> {
+    match fields {
+        syn::Fields::Named(fields) => fields.named.get_mut(idx),
+        syn::Fields::Unnamed(fields) => fields.unnamed.get_mut(idx),
+        syn::Fields::Unit => None,
+    }
+}
+
 /// Generate the Jfyi and Fatal sub enums.
 ///
 /// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
 /// `forward_variants` enlists all variants that
 fn trait_split_impl(
-    original: ItemEnum,
+    split_opts: split::Opts,
+    original: DeriveInput<DataEnum>,
     resolution_lut: &IndexMap<Variant, ResolutionMode>,
     jfyi_variants: &[Variant],
     fatal_variants: &[Variant],
 ) -> Result<TokenStream, syn::Error> {
-    let span = original.span();
-
-    let thiserror: Path = parse_quote!(thiserror::Error);
-    let thiserror = abs_helper_path(thiserror, span);
+    let span = original.data.brace_token.span.join();
 
     let split_trait = abs_helper_path(Ident::new("Split", span), span);
 
-    let original_ident = original.ident.clone();
+    let original_ident = &original.ident;
 
     // Generate the splitable types:
     //   Fatal
-    let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
-    let mut fatal = original.clone();
-    fatal.variants = fatal_variants.iter().cloned().collect();
-    fatal.ident = fatal_ident.clone();
+    let fatal_ident = Ident::new(format!("Fatal{}", original.ident).as_str(), span);
+    let fatal = {
+        let attrs = if let Some(attrs) = split_opts.attrs.clone() {
+            attrs.into_iter().map(outer_attr).collect()
+        } else {
+            let derive_attr = default_split_derive_attr(Span::call_site());
+            let retained_attrs = original
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("split"))
+                .cloned();
+            std::iter::once(derive_attr).chain(retained_attrs).collect()
+        };
+        ItemEnum {
+            attrs,
+            vis: original.vis.clone(),
+            enum_token: original.data.enum_token,
+            ident: fatal_ident.clone(),
+            generics: original.generics.clone(),
+            brace_token: original.data.brace_token,
+            variants: fatal_variants.iter().cloned().collect(),
+        }
+    };
 
     //  Informational (just for your information)
-    let jfyi_ident = Ident::new(format!("Jfyi{}", original_ident).as_str(), span);
-    let mut jfyi = original.clone();
-    jfyi.variants = jfyi_variants.iter().cloned().collect();
-    jfyi.ident = jfyi_ident.clone();
+    let jfyi_ident = Ident::new(format!("Jfyi{}", original.ident).as_str(), span);
+    let jfyi = {
+        let attrs = if let Some(attrs) = split_opts.attrs.clone() {
+            attrs.into_iter().map(outer_attr).collect()
+        } else {
+            let derive_attr = default_split_derive_attr(Span::call_site());
+            let retained_attrs = original
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("split"))
+                .cloned();
+            std::iter::once(derive_attr).chain(retained_attrs).collect()
+        };
+        ItemEnum {
+            attrs,
+            vis: original.vis,
+            enum_token: original.data.enum_token,
+            ident: jfyi_ident.clone(),
+            generics: original.generics.clone(),
+            brace_token: original.data.brace_token,
+            variants: jfyi_variants.iter().cloned().collect(),
+        }
+    };
 
     let fatal_patterns = fatal_variants
         .iter()
@@ -582,6 +772,8 @@ fn trait_split_impl(
     let mut ts = TokenStream::new();
 
     ts.extend(quote! {
+        #fatal
+
         impl ::std::convert::From< #fatal_ident> for #original_ident {
             fn from(fatal: #fatal_ident) -> Self {
                 match fatal {
@@ -591,6 +783,8 @@ fn trait_split_impl(
             }
         }
 
+        #jfyi
+
         impl ::std::convert::From< #jfyi_ident> for #original_ident {
             fn from(jfyi: #jfyi_ident) -> Self {
                 match jfyi {
@@ -599,12 +793,6 @@ fn trait_split_impl(
                 }
             }
         }
-
-        #[derive(#thiserror, Debug)]
-        #fatal
-
-        #[derive(#thiserror, Debug)]
-        #jfyi
     });
 
     // Handle `forward` annotations.
@@ -672,19 +860,17 @@ fn trait_split_impl(
 /// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
 /// `forward_variants` enlists all variants that
 fn trait_split_struct_impl(
-    original: &syn::ItemStruct,
+    split_opts: split::Opts,
+    original: &DeriveInput<DataStruct>,
     split_field_idx: usize,
 ) -> Result<TokenStream, syn::Error> {
-    let span = original.span();
-
-    let thiserror: Path = parse_quote!(thiserror::Error);
-    let thiserror = abs_helper_path(thiserror, span);
+    let span = original.data.fields.span();
 
     let split_trait = abs_helper_path(Ident::new("Split", span), span);
 
     let original_ident = original.ident.clone();
 
-    let split_field = original.fields.iter().nth(split_field_idx).unwrap();
+    let split_field = original.data.fields.iter().nth(split_field_idx).unwrap();
     let split_field_projector: syn::Member = match split_field.ident.clone() {
         Some(ident) => ident.into(),
         None => split_field_idx.into(),
@@ -694,9 +880,20 @@ fn trait_split_struct_impl(
     // Generate the splitable types:
     //   Fatal
     let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
-    let mut fatal = original.clone();
-    for (field_idx, field) in fatal.fields.iter_mut().enumerate() {
-        if field_idx == split_field_idx {
+    let fatal = {
+        let attrs = if let Some(attrs) = split_opts.attrs.clone() {
+            attrs.into_iter().map(outer_attr).collect()
+        } else {
+            let derive_attr = default_split_derive_attr(Span::call_site());
+            let retained_attrs = original
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("split"))
+                .cloned();
+            std::iter::once(derive_attr).chain(retained_attrs).collect()
+        };
+        let mut fields = original.data.fields.clone();
+        if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_fatal_path = split_trait.clone();
             split_fatal_path
                 .segments
@@ -714,16 +911,33 @@ fn trait_split_struct_impl(
                 }),
                 path: split_fatal_path,
             });
-            break;
         }
-    }
-    fatal.ident = fatal_ident.clone();
-
+        ItemStruct {
+            attrs,
+            vis: original.vis.clone(),
+            struct_token: original.data.struct_token,
+            ident: fatal_ident.clone(),
+            generics: original.generics.clone(),
+            fields,
+            semi_token: original.data.semi_token,
+        }
+    };
     //  Informational (just for your information)
     let jfyi_ident = Ident::new(format!("Jfyi{}", original_ident).as_str(), span);
-    let mut jfyi = original.clone();
-    for (field_idx, field) in jfyi.fields.iter_mut().enumerate() {
-        if field_idx == split_field_idx {
+    let jfyi = {
+        let attrs = if let Some(attrs) = split_opts.attrs {
+            attrs.into_iter().map(outer_attr).collect()
+        } else {
+            let derive_attr = default_split_derive_attr(Span::call_site());
+            let retained_attrs = original
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("split"))
+                .cloned();
+            std::iter::once(derive_attr).chain(retained_attrs).collect()
+        };
+        let mut fields = original.data.fields.clone();
+        if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_jfyi_path = split_trait.clone();
             split_jfyi_path
                 .segments
@@ -741,14 +955,22 @@ fn trait_split_struct_impl(
                 }),
                 path: split_jfyi_path,
             });
-            break;
         }
-    }
-    jfyi.ident = jfyi_ident.clone();
+        ItemStruct {
+            attrs,
+            vis: original.vis.clone(),
+            struct_token: original.data.struct_token,
+            ident: jfyi_ident.clone(),
+            generics: original.generics.clone(),
+            fields,
+            semi_token: original.data.semi_token,
+        }
+    };
 
     let mut ts = TokenStream::new();
 
     let non_split_field_projectors: Vec<_> = original
+        .data
         .fields
         .iter()
         .enumerate()
@@ -766,6 +988,8 @@ fn trait_split_struct_impl(
         .collect();
 
     ts.extend(quote! {
+        #fatal
+
         impl ::std::convert::From< #fatal_ident> for #original_ident {
             fn from(fatal: #fatal_ident) -> Self {
                 Self {
@@ -775,6 +999,8 @@ fn trait_split_struct_impl(
             }
         }
 
+        #jfyi
+
         impl ::std::convert::From< #jfyi_ident> for #original_ident {
             fn from(jfyi: #jfyi_ident) -> Self {
                 Self {
@@ -783,12 +1009,6 @@ fn trait_split_struct_impl(
                 }
             }
         }
-
-        #[derive(#thiserror, Debug)]
-        #fatal
-
-        #[derive(#thiserror, Debug)]
-        #jfyi
     });
 
     let split_trait_impl = quote! {
@@ -817,7 +1037,7 @@ fn trait_split_struct_impl(
 }
 
 pub(crate) fn fatality_struct_gen(
-    mut item: syn::ItemStruct,
+    mut item: DeriveInput<DataStruct>,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut resolution_mode = ResolutionMode::NoAnnotation;
 
@@ -849,8 +1069,9 @@ pub(crate) fn fatality_struct_gen(
 
 pub(crate) fn split_struct_gen(
     span: proc_macro2::Span,
-    mut item: syn::ItemStruct,
+    mut item: DeriveInput<DataStruct>,
 ) -> syn::Result<proc_macro2::TokenStream> {
+    let split_opts = split::Opts::from_attrs(&item.attrs)?;
     let mut resolution_mode = ResolutionMode::NoAnnotation;
 
     // remove the `#[fatal]` attribute
@@ -884,11 +1105,12 @@ pub(crate) fn split_struct_gen(
         }
         ResolutionMode::Forward(_, _) => (),
     }
-    if item.fields.is_empty() {
+    if item.data.fields.is_empty() {
         let err_msg = "Cannot derive `Split` for a unit struct";
         return Err(syn::Error::new(span, err_msg));
     }
     let Some(source_field_idx) = item
+        .data
         .fields
         .iter()
         .position(|field| {
@@ -903,14 +1125,14 @@ pub(crate) fn split_struct_gen(
             })
         })
         .or_else(|| {
-            item.fields.iter().position(|field| {
+            item.data.fields.iter().position(|field| {
                 field
                     .ident
                     .as_ref()
                     .is_some_and(|field_ident| field_ident == "source")
             })
         })
-        .or_else(|| match &item.fields {
+        .or_else(|| match &item.data.fields {
             syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => Some(0),
             _ => None,
         })
@@ -920,16 +1142,16 @@ pub(crate) fn split_struct_gen(
             "Cannot use `splitable` on a `struct` without a source field",
         ));
     };
-    trait_split_struct_impl(&item, source_field_idx)
+    trait_split_struct_impl(split_opts, &item, source_field_idx)
 }
 
-pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
+pub(crate) fn fatality_enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStream> {
     let mut resolution_lut = IndexMap::new();
     let mut pattern_lut = IndexMap::new();
 
-    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::fatality::thiserror::Error, Debug)]`
+    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
-    for variant in item.variants.iter_mut() {
+    for variant in item.data.variants.iter_mut() {
         let mut resolution_mode = ResolutionMode::NoAnnotation;
 
         // remove the `#[fatal]` attribute
@@ -966,15 +1188,16 @@ pub(crate) fn fatality_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> 
     ))
 }
 
-pub(crate) fn split_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
+pub(crate) fn split_enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStream> {
+    let opts = split::Opts::from_attrs(&item.attrs)?;
     let mut resolution_lut = IndexMap::new();
 
     let mut jfyi_variants = Vec::new();
     let mut fatal_variants = Vec::new();
 
-    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::fatality::thiserror::Error, Debug)]`
+    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
-    for variant in item.variants.iter_mut() {
+    for variant in item.data.variants.iter_mut() {
         let mut resolution_mode = ResolutionMode::NoAnnotation;
 
         // remove the `#[fatal]` attribute
@@ -1013,5 +1236,5 @@ pub(crate) fn split_enum_gen(mut item: ItemEnum) -> syn::Result<TokenStream> {
         resolution_lut.insert(variant.clone(), resolution_mode);
     }
 
-    trait_split_impl(item, &resolution_lut, &jfyi_variants, &fatal_variants)
+    trait_split_impl(opts, item, &resolution_lut, &jfyi_variants, &fatal_variants)
 }

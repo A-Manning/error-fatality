@@ -1,0 +1,145 @@
+error: cannot find attribute `error` in this scope
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:36:4
+   |
+36 |     #[error(transparent)]
+   |       ^^^^^
+   |
+help: `error` is an attribute that can be used by the derive macro `Error`, you might be missing a `derive` attribute
+   |
+31 + #[derive(Error)]
+32 | enum Kaboom {
+   |
+
+error: cannot find attribute `from` in this scope
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:38:9
+   |
+38 |     Bobo(#[from] Bobo),
+   |            ^^^^
+   |
+help: `from` is an attribute that can be used by the derive macro `Error`, you might be missing a `derive` attribute
+   |
+31 + #[derive(Error)]
+32 | enum Kaboom {
+   |
+
+error: cannot find attribute `error` in this scope
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:32:4
+   |
+32 |     #[error(transparent)]
+   |       ^^^^^
+   |
+help: `error` is an attribute that can be used by the derive macro `Error`, you might be missing a `derive` attribute
+   |
+31 + #[derive(Error)]
+32 | enum Kaboom {
+   |
+
+error: cannot find attribute `from` in this scope
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:34:9
+   |
+34 |     Iffy(#[from] Fatal),
+   |            ^^^^
+   |
+help: `from` is an attribute that can be used by the derive macro `Error`, you might be missing a `derive` attribute
+   |
+31 + #[derive(Error)]
+32 | enum Kaboom {
+   |
+
+error[E0277]: the trait bound `FatalKaboom: std::error::Error` is not satisfied
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:31:13
+   |
+31 |   enum Kaboom {
+   |  _____________^
+32 | |     #[error(transparent)]
+33 | |     #[fatal]
+34 | |     Iffy(#[from] Fatal),
+...  |
+38 | |     Bobo(#[from] Bobo),
+39 | | }
+   | |_^ unsatisfied trait bound
+   |
+help: the trait `std::error::Error` is not implemented for `FatalKaboom`
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:31:1
+   |
+31 | / enum Kaboom {
+32 | |     #[error(transparent)]
+33 | |     #[fatal]
+34 | |     Iffy(#[from] Fatal),
+...  |
+38 | |     Bobo(#[from] Bobo),
+39 | | }
+   | |_^
+note: required by a bound in `fatality::Split::Fatal`
+  --> src/lib.rs
+   |
+   |     type Fatal: std::error::Error + Send + Sync + 'static;
+   |                 ^^^^^^^^^^^^^^^^^ required by this bound in `Split::Fatal`
+
+error[E0277]: the trait bound `JfyiKaboom: std::error::Error` is not satisfied
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:31:13
+   |
+31 |   enum Kaboom {
+   |  _____________^
+32 | |     #[error(transparent)]
+33 | |     #[fatal]
+34 | |     Iffy(#[from] Fatal),
+...  |
+38 | |     Bobo(#[from] Bobo),
+39 | | }
+   | |_^ unsatisfied trait bound
+   |
+help: the trait `std::error::Error` is not implemented for `JfyiKaboom`
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:31:1
+   |
+31 | / enum Kaboom {
+32 | |     #[error(transparent)]
+33 | |     #[fatal]
+34 | |     Iffy(#[from] Fatal),
+...  |
+38 | |     Bobo(#[from] Bobo),
+39 | | }
+   | |_^
+note: required by a bound in `fatality::Split::Jfyi`
+  --> src/lib.rs
+   |
+   |     type Jfyi: std::error::Error + Send + Sync + 'static;
+   |                ^^^^^^^^^^^^^^^^^ required by this bound in `Split::Jfyi`
+
+error[E0277]: `FatalKaboom` doesn't implement `Debug`
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:51:3
+   |
+51 |         assert_matches!(fatal, FatalKaboom::Iffy(_));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         |
+   |         `FatalKaboom` cannot be formatted using `{:?}` because it doesn't implement `Debug`
+   |         required by this formatting parameter
+   |
+   = help: the trait `Debug` is not implemented for `FatalKaboom`
+   = note: add `#[derive(Debug)]` to `FatalKaboom` or manually `impl Debug for FatalKaboom`
+   = note: required for `&FatalKaboom` to implement `Debug`
+   = note: this error originates in the macro `$crate::const_format_args` which comes from the expansion of the macro `assert_matches` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `FatalKaboom` with `#[derive(Debug)]`
+   |
+31 + #[derive(Debug)]
+32 | enum Kaboom {
+   |
+
+error[E0277]: `JfyiKaboom` doesn't implement `Debug`
+  --> tests/ui/err-04-split-attrs-missing-derives.rs:54:3
+   |
+54 |         assert_matches!(bobo, JfyiKaboom::Bobo(_));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         |
+   |         `JfyiKaboom` cannot be formatted using `{:?}` because it doesn't implement `Debug`
+   |         required by this formatting parameter
+   |
+   = help: the trait `Debug` is not implemented for `JfyiKaboom`
+   = note: add `#[derive(Debug)]` to `JfyiKaboom` or manually `impl Debug for JfyiKaboom`
+   = note: required for `&JfyiKaboom` to implement `Debug`
+   = note: this error originates in the macro `$crate::const_format_args` which comes from the expansion of the macro `assert_matches` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `JfyiKaboom` with `#[derive(Debug)]`
+   |
+31 + #[derive(Debug)]
+32 | enum Kaboom {
+   |

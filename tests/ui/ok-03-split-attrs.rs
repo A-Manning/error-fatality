@@ -27,6 +27,7 @@ struct Fatal;
 struct Bobo;
 
 #[derive(Debug, Error, Fatality, Split)]
+#[split(attrs(derive(Debug, Error)))]
 enum Kaboom {
 	#[error(transparent)]
 	#[fatal]

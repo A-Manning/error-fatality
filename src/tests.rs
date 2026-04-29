@@ -1,6 +1,8 @@
-use super::*;
+use thiserror::Error;
 
-#[derive(Debug, thiserror::Error)]
+use crate::Fatality;
+
+#[derive(Debug, Error)]
 #[error("X")]
 struct X;
 
@@ -10,7 +12,7 @@ impl Fatality for X {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("Y")]
 struct Y;
 
@@ -20,7 +22,7 @@ impl Fatality for Y {
     }
 }
 
-#[derive(Debug, Fatality, thiserror::Error)]
+#[derive(Debug, Error, Fatality)]
 enum Acc {
     #[error("0")]
     Zero,

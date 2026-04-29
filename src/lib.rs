@@ -16,7 +16,6 @@
 //! is resolved.
 
 pub use fatality_proc_macro::{Fatality, Split};
-pub use thiserror;
 
 /// Determine the fatality of an error.
 pub trait Fatality: std::error::Error + std::fmt::Debug {

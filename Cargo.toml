@@ -13,12 +13,12 @@ repository = "https://github.com/drahnr/fatality.git"
 
 [dependencies]
 fatality-proc-macro = { version = "0.1.0", path = "./proc-macro" }
-thiserror = "1.0"
 
 [dev-dependencies]
-trybuild = "1.0"
-log = "0.4"
 assert_matches = "1"
+log = "0.4"
+thiserror = "1.0"
+trybuild = "1.0"
 
 [features]
 default = []
