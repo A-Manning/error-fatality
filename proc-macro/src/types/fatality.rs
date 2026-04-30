@@ -1,0 +1,121 @@
+use indexmap::IndexMap;
+use proc_macro2::TokenStream;
+use quote::quote;
+use syn::{DataEnum, DataStruct, Ident, Pat, Variant};
+
+use crate::types::{
+    DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern, struct_to_pattern,
+};
+
+/// Implement `trait Fatality` for `who`.
+fn enum_impl(
+    who: &Ident,
+    pattern_lut: &IndexMap<Variant, Pat>,
+    resolution_lut: &IndexMap<Variant, ResolutionMode>,
+) -> TokenStream {
+    let pat = pattern_lut.values();
+    let resolution = resolution_lut.values();
+
+    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    quote! {
+        impl #fatality_trait for #who {
+            fn is_fatal(&self) -> bool {
+                match self {
+                    #( #pat => #resolution, )*
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStream> {
+    let mut resolution_lut = IndexMap::new();
+    let mut pattern_lut = IndexMap::new();
+
+    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
+    // without the intermediate type. But impl `trait Fatality` on-top.
+    for variant in item.data.variants.iter_mut() {
+        let mut resolution_mode = ResolutionMode::NoAnnotation;
+
+        // remove the `#[fatal]` attribute
+        while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
+            if attr.path().is_ident("fatal") {
+                Some(idx)
+            } else {
+                None
+            }
+        }) {
+            let attr = variant.attrs.remove(idx);
+            if attr.meta.require_path_only().is_ok() {
+                resolution_mode = ResolutionMode::Fatal;
+            } else {
+                resolution_mode = attr.parse_args::<ResolutionMode>()?;
+            }
+        }
+
+        // Obtain the patterns for each variant, and the resolution, which can either
+        // be `forward`, `true`, or `false`
+        // as used in the `trait Fatality`.
+        let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
+        if let ResolutionMode::Forward(_, None) = resolution_mode {
+            unreachable!("Must have an ident. qed")
+        }
+        resolution_lut.insert(variant.clone(), resolution_mode);
+        pattern_lut.insert(variant.clone(), pattern);
+    }
+
+    Ok(enum_impl(&item.ident, &pattern_lut, &resolution_lut))
+}
+
+/// Implement `trait Fatality` for `who`.
+fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
+    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    let resolution = match resolution {
+        ResolutionMode::Forward(_fwd, field) => {
+            let field = field
+                .as_ref()
+                .expect("Ident must be filled at this point. qed");
+            quote! {
+                #fatality_trait :: is_fatal( & self. #field )
+            }
+        }
+        rm => quote! {
+            #rm
+        },
+    };
+    quote! {
+        impl #fatality_trait for #who {
+            fn is_fatal(&self) -> bool {
+                #resolution
+            }
+        }
+    }
+}
+
+pub(crate) fn struct_gen(
+    mut item: DeriveInput<DataStruct>,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let mut resolution_mode = ResolutionMode::NoAnnotation;
+
+    // remove the `#[fatal]` attribute
+    while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
+        if attr.path().is_ident("fatal") {
+            Some(idx)
+        } else {
+            None
+        }
+    }) {
+        let attr = item.attrs.remove(idx);
+        if attr.meta.require_path_only().is_ok() {
+            // no argument to `#[fatal]` means it's fatal
+            resolution_mode = ResolutionMode::Fatal;
+        } else {
+            // parse whatever was passed to `#[fatal(..)]`.
+            resolution_mode = attr.parse_args::<ResolutionMode>()?;
+        }
+    }
+
+    let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+
+    Ok(struct_impl(&item.ident, &resolution_mode))
+}

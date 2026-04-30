@@ -6,7 +6,7 @@ use syn::spanned::Spanned;
 
 mod types;
 
-pub(crate) use self::types::*;
+pub(crate) use self::types::{DeriveInput, fatality, split};
 
 fn fatality_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
     let input_span = input.span();
@@ -29,7 +29,7 @@ fn fatality_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::T
     match data {
         syn::Data::Enum(data_enum) => {
             bail_if_has_generics(&generics, generics.span())?;
-            fatality_enum_gen(DeriveInput {
+            fatality::enum_gen(DeriveInput {
                 attrs,
                 vis,
                 ident,
@@ -39,7 +39,7 @@ fn fatality_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::T
         }
         syn::Data::Struct(data_struct) => {
             bail_if_has_generics(&generics, generics.span())?;
-            fatality_struct_gen(DeriveInput {
+            fatality::struct_gen(DeriveInput {
                 attrs,
                 vis,
                 ident,
@@ -97,7 +97,7 @@ fn split_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Toke
     match data {
         syn::Data::Enum(data_enum) => {
             bail_if_has_generics(&generics, generics.span())?;
-            split_enum_gen(DeriveInput {
+            split::enum_gen(DeriveInput {
                 attrs,
                 vis,
                 ident,
@@ -107,7 +107,7 @@ fn split_inner(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::Toke
         }
         syn::Data::Struct(data_struct) => {
             bail_if_has_generics(&generics, generics.span())?;
-            split_struct_gen(
+            split::struct_gen(
                 input_span,
                 DeriveInput {
                     attrs,

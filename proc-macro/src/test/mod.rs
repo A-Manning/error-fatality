@@ -5,7 +5,7 @@ mod component {
     use assert_matches::assert_matches;
     use quote::quote;
 
-    use crate::ResolutionMode;
+    use crate::types::ResolutionMode;
 
     #[test]
     fn parse_attr_resmode_forward() {
