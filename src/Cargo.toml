@@ -1,0 +1,25 @@
+[dependencies]
+fatality-proc-macro = { workspace = true }
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+trybuild = { workspace = true }
+
+[features]
+default = []
+expand = ["fatality-proc-macro/expand"]
+
+[lib]
+path = "lib.rs"
+
+[package]
+authors = { workspace = true }
+description = "Fatality extension to `thiserror::Error`"
+edition = { workspace = true }
+license = { workspace = true }
+name = "fatality"
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }

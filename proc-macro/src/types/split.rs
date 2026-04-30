@@ -1,4 +1,4 @@
-use syn::{punctuated::Punctuated, spanned::Spanned, Meta, Token};
+use syn::{Meta, Token, punctuated::Punctuated, spanned::Spanned};
 
 /// Options provided via the `#[split(_)]` attribute
 #[derive(Clone, Debug)]
@@ -39,7 +39,7 @@ impl Opts {
                     }
                 }
                 Meta::List(_) | Meta::NameValue(_) | Meta::Path(_) => {
-                    return Err(syn::Error::new(meta.span(), Self::INVALID_SYNTAX_ERR_MSG))
+                    return Err(syn::Error::new(meta.span(), Self::INVALID_SYNTAX_ERR_MSG));
                 }
             }
         }
@@ -56,7 +56,7 @@ impl Opts {
                 return Err(syn::Error::new(
                     r_attrs.span(),
                     Self::MULTIPLE_ATTRS_ERR_MSG,
-                ))
+                ));
             }
         };
         Ok(Self { attrs })

@@ -1,18 +1,18 @@
 use indexmap::IndexMap;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
+    DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat, PatIdent,
+    PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token,
+    Variant,
     parse::{Parse, ParseStream},
     parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Brace, Paren, PathSep},
-    DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat, PatIdent,
-    PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token,
-    Variant,
 };
 
-use proc_macro_crate::{crate_name, FoundCrate};
+use proc_macro_crate::{FoundCrate, crate_name};
 
 mod split;
 
@@ -407,12 +407,10 @@ fn to_pattern(
                     let fwd_idx = if is_transparent {
                         // must be the only field, otherwise bail
                         if fields.unnamed.iter().count() != 1 {
-                            return Err(
-                                syn::Error::new(
-                                    fields.span(),
-                                    "Must have exactly one parameter when annotated with `#[transparent]` annotated field for `forward` with `fatality`",
-                                )
-                            );
+                            return Err(syn::Error::new(
+                                fields.span(),
+                                "Must have exactly one parameter when annotated with `#[transparent]` annotated field for `forward` with `fatality`",
+                            ));
                         }
                         0_usize
                     } else {

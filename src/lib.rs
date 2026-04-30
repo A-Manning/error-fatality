@@ -68,4 +68,4 @@ impl<T, E: Split> Nested<T, E> for std::result::Result<T, E> {
 }
 
 #[cfg(test)]
-mod tests;
+mod test;

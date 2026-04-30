@@ -1,31 +1,29 @@
-[package]
-name = "fatality-proc-macro"
-version = "0.1.1"
-authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
-edition = "2021"
-description = "Fatality extension to crate thiserror - proc-macro part"
-repository = "https://github.com/drahnr/fatality.git"
-license = "MIT OR Apache-2.0"
-
-[lib]
-proc-macro = true
-
 [dependencies]
-proc-macro2 = "1.0"
-quote = "1.0"
-syn = { version = "2", features = [
-  "parsing",
-  "printing",
-  "full",
-  "extra-traits",
-] }
-proc-macro-crate = "3.1"
-indexmap = "2"
-expander = "2"
+expander = { workspace = true }
+indexmap = { workspace = true }
+proc-macro-crate = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+
+[dependencies.syn]
+features = ["parsing", "printing", "full", "extra-traits"]
+workspace = true
 
 [dev-dependencies]
-assert_matches = "1"
+assert_matches = { workspace = true }
 
 [features]
 default = []
 expand = []
+
+[lib]
+proc-macro = true
+
+[package]
+authors = { workspace = true }
+description = "Fatality extension to crate thiserror - proc-macro part"
+edition = { workspace = true }
+name = "fatality-proc-macro"
+repository = { workspace = true }
+version = { workspace = true }
+license = { workspace = true }
