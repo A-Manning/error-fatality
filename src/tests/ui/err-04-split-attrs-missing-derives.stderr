@@ -52,7 +52,7 @@ error[E0277]: the trait bound `FatalKaboom: std::error::Error` is not satisfied
 31 |   enum Kaboom {
    |  _____________^
 32 | |     #[error(transparent)]
-33 | |     #[fatal]
+33 | |     #[fatal(true)]
 34 | |     Iffy(#[from] Fatal),
 ...  |
 38 | |     Bobo(#[from] Bobo),
@@ -64,7 +64,7 @@ help: the trait `std::error::Error` is not implemented for `FatalKaboom`
    |
 31 | / enum Kaboom {
 32 | |     #[error(transparent)]
-33 | |     #[fatal]
+33 | |     #[fatal(true)]
 34 | |     Iffy(#[from] Fatal),
 ...  |
 38 | |     Bobo(#[from] Bobo),
@@ -82,7 +82,7 @@ error[E0277]: the trait bound `JfyiKaboom: std::error::Error` is not satisfied
 31 |   enum Kaboom {
    |  _____________^
 32 | |     #[error(transparent)]
-33 | |     #[fatal]
+33 | |     #[fatal(true)]
 34 | |     Iffy(#[from] Fatal),
 ...  |
 38 | |     Bobo(#[from] Bobo),
@@ -94,7 +94,7 @@ help: the trait `std::error::Error` is not implemented for `JfyiKaboom`
    |
 31 | / enum Kaboom {
 32 | |     #[error(transparent)]
-33 | |     #[fatal]
+33 | |     #[fatal(true)]
 34 | |     Iffy(#[from] Fatal),
 ...  |
 38 | |     Bobo(#[from] Bobo),

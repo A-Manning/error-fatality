@@ -29,10 +29,11 @@ struct Bobo;
 #[derive(Debug, Error, Fatality)]
 enum Kaboom {
 	#[error(transparent)]
-	#[fatal]
+	#[fatal(true)]
 	Iffy(Fatal),
 
 	#[error(transparent)]
+	#[fatal(false)]
 	Bobo(#[from] Bobo),
 }
 

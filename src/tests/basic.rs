@@ -4,10 +4,11 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
 enum Yikes {
+    #[fatal(true)]
     #[error("An apple a day")]
     Orange,
 
-    #[fatal]
+    #[fatal(true)]
     #[error("So dead")]
     Dead,
 }

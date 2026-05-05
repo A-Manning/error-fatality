@@ -21,10 +21,11 @@ fn simple() {
         quote! {
             enum Kaboom {
                 #[error("Eh?")]
+                #[fatal(false)]
                 Eh,
 
-                #[fatal]
                 #[error("Explosion")]
+                #[fatal(true)]
                 Explosion,
             }
         },
@@ -82,7 +83,17 @@ fn strukt_cannot_split() {
             pub struct X;
         },
         quote! {
-            ::core::compile_error! { "splitable structs must have a source field" }
+            ::core::compile_error! { "missing `#[fatal(_)]` attribute for struct" }
+        },
+    );
+    run_test(
+        quote! {
+            #[error("Cancelled")]
+            #[fatal(forward)]
+            pub struct X;
+        },
+        quote! {
+            ::core::compile_error! { "cannot forward to a unit item variant" }
         },
     );
 }
@@ -92,7 +103,7 @@ fn regression() {
     run_test(
         quote! {
             pub enum X {
-                #[fatal]
+                #[fatal(true)]
                 #[error("Cancelled")]
                 Inner(Foo),
             }

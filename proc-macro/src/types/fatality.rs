@@ -35,23 +35,7 @@ pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStre
     // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
     for variant in item.data.variants.iter_mut() {
-        let mut resolution_mode = ResolutionMode::NoAnnotation;
-
-        // remove the `#[fatal]` attribute
-        while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
-            if attr.path().is_ident("fatal") {
-                Some(idx)
-            } else {
-                None
-            }
-        }) {
-            let attr = variant.attrs.remove(idx);
-            if attr.meta.require_path_only().is_ok() {
-                resolution_mode = ResolutionMode::Fatal;
-            } else {
-                resolution_mode = attr.parse_args::<ResolutionMode>()?;
-            }
-        }
+        let resolution_mode = ResolutionMode::extract_from_variant_attrs(variant)?;
 
         // Obtain the patterns for each variant, and the resolution, which can either
         // be `forward`, `true`, or `false`
@@ -95,25 +79,7 @@ fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
 pub(crate) fn struct_gen(
     mut item: DeriveInput<DataStruct>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let mut resolution_mode = ResolutionMode::NoAnnotation;
-
-    // remove the `#[fatal]` attribute
-    while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
-        if attr.path().is_ident("fatal") {
-            Some(idx)
-        } else {
-            None
-        }
-    }) {
-        let attr = item.attrs.remove(idx);
-        if attr.meta.require_path_only().is_ok() {
-            // no argument to `#[fatal]` means it's fatal
-            resolution_mode = ResolutionMode::Fatal;
-        } else {
-            // parse whatever was passed to `#[fatal(..)]`.
-            resolution_mode = attr.parse_args::<ResolutionMode>()?;
-        }
-    }
+    let resolution_mode = ResolutionMode::extract_from_struct_attrs(&mut item)?;
 
     let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
 

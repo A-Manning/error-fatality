@@ -20,11 +20,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
 enum Inner {
-    #[fatal]
     #[error("That's it.")]
+    #[fatal(true)]
     GameOver,
 
     #[error("Chuckle")]
+    #[fatal(false)]
     ChuckleOn,
 }
 
@@ -35,6 +36,7 @@ enum Kaboom {
     Iffy(Inner),
 
     #[error("Bobo")]
+    #[fatal(true)]
     Bobo,
 }
 
@@ -48,6 +50,7 @@ fn laughable() -> Result<(), Kaboom> {
 
 #[derive(Debug, Error, Fatality, Split)]
 #[error(transparent)]
+#[fatal(forward)]
 struct TransparentStructWrapper {
     #[from]
     source: Kaboom,
@@ -55,6 +58,7 @@ struct TransparentStructWrapper {
 
 #[derive(Debug, Error, Fatality, Split)]
 #[error("Struct wrapper")]
+#[fatal(forward)]
 struct StructWrapper {
     source: Kaboom,
     other_field: (),
@@ -71,10 +75,12 @@ impl From<Kaboom> for StructWrapper {
 
 #[derive(Debug, Error, Fatality, Split)]
 #[error(transparent)]
+#[fatal(forward)]
 struct TransparentTupleStructWrapper(Kaboom);
 
 #[derive(Debug, Error, Fatality, Split)]
 #[error("Tuple struct wrapper")]
+#[fatal(forward)]
 struct TupleStructWrapper(#[source] Kaboom, ());
 
 impl From<Kaboom> for TupleStructWrapper {

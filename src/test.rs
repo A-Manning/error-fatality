@@ -25,21 +25,23 @@ impl Fatality for Y {
 #[derive(Debug, Error, Fatality)]
 enum Acc {
     #[error("0")]
+    #[fatal(false)]
     Zero,
 
     #[error("X={0}")]
+    #[fatal(forward)]
     A(#[source] X),
 
-    #[fatal]
     #[error(transparent)]
+    #[fatal(forward)]
     B(Y),
 
-    #[fatal(forward)]
     #[error("X={0}")]
+    #[fatal(forward)]
     Aaaaa(#[source] X),
 
-    #[fatal(forward)]
     #[error(transparent)]
+    #[fatal(forward)]
     Bbbbbb(Y),
 }
 

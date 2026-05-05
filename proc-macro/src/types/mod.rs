@@ -1,9 +1,9 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{
-    DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat, PatIdent,
-    PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token,
-    Variant,
+    Attribute, DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat,
+    PatIdent, PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments,
+    PathSegment, Token, Variant,
     parse::{Parse, ParseStream},
     parse_quote,
     punctuated::Punctuated,
@@ -112,24 +112,57 @@ fn unnamed_fields_variant_pattern_constructor_binding_name(ith: usize) -> Ident 
     Ident::new(format!("arg_{}", ith).as_str(), Span::call_site())
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) enum ResolutionMode {
-    /// Not relevant for fatality determination, always non-fatal.
-    NoAnnotation,
-    /// Fatal by default.
-    #[default]
-    Fatal,
-    /// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
-    WithExplicitBool(LitBool),
     /// Specified via a keyword argument `#[fatal(forward)]`.
     Forward(kw::forward, Option<syn::Member>),
+    /// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
+    WithExplicitBool(LitBool),
+}
+
+impl ResolutionMode {
+    /// Extract the resolution mode from attrs.
+    /// Returns an error if the resolution mode is specified multiple times.
+    fn extract(attrs: &mut Vec<Attribute>) -> syn::Result<Option<Self>> {
+        let mut fatal_attr_idx = None;
+        for (idx, attr) in attrs
+            .iter()
+            .enumerate()
+            .filter(|(_idx, attr)| attr.path().is_ident("fatal"))
+        {
+            if fatal_attr_idx.is_none() {
+                fatal_attr_idx = Some(idx);
+            } else {
+                let err_msg = "fatality specified multiple times";
+                return Err(syn::Error::new(attr.span(), err_msg));
+            }
+        }
+        let Some(fatal_attr_idx) = fatal_attr_idx else {
+            return Ok(None);
+        };
+        let fatal_attr = attrs.remove(fatal_attr_idx);
+        let res = fatal_attr.parse_args::<ResolutionMode>()?;
+        Ok(Some(res))
+    }
+
+    fn extract_from_variant_attrs(variant: &mut Variant) -> syn::Result<Self> {
+        ResolutionMode::extract(&mut variant.attrs)?.ok_or_else(|| {
+            let err_msg = "missing `#[fatal(_)]` attribute for variant";
+            syn::Error::new(variant.span(), err_msg)
+        })
+    }
+
+    fn extract_from_struct_attrs(strukt: &mut DeriveInput<DataStruct>) -> syn::Result<Self> {
+        ResolutionMode::extract(&mut strukt.attrs)?.ok_or_else(|| {
+            let err_msg = "missing `#[fatal(_)]` attribute for struct";
+            syn::Error::new(strukt.ident.span(), err_msg)
+        })
+    }
 }
 
 impl std::fmt::Debug for ResolutionMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoAnnotation => writeln!(f, "None"),
-            Self::Fatal => writeln!(f, "Fatal"),
             Self::WithExplicitBool(b) => writeln!(f, "Fatal({})", b.value()),
             Self::Forward(_, member) => writeln!(
                 f,
@@ -164,8 +197,6 @@ impl ToTokens for ResolutionMode {
     fn to_tokens(&self, ts: &mut TokenStream) {
         let trait_fatality = abs_helper_path(format_ident!("Fatality"), Span::call_site());
         let tmp = match self {
-            Self::NoAnnotation => quote! { false },
-            Self::Fatal => quote! { true },
             Self::WithExplicitBool(boolean) => {
                 let value = boolean.value;
                 quote! { #value }
@@ -238,15 +269,9 @@ fn to_pattern(
     let (pat, resolution) = match fields {
         Fields::Named(fields) => {
             let (fields, resolution) = {
-                let (fwd_keyword, _ident) = match &requested_resolution_mode {
-                    ResolutionMode::NoAnnotation => {
-                        let fwd_keyword = kw::forward {
-                            span: requested_resolution_mode.span(),
-                        };
-                        (Some(fwd_keyword), None)
-                    }
-                    ResolutionMode::Forward(keyword, _ident) => (Some(*keyword), Some(_ident)),
-                    _ => (None, None),
+                let (fwd_keyword, ident) = match &requested_resolution_mode {
+                    ResolutionMode::Forward(keyword, ident) => (Some(*keyword), Some(ident)),
+                    ResolutionMode::WithExplicitBool(_) => (None, None),
                 };
                 if let Some(fwd_keyword) = fwd_keyword {
                     let fwd_field = if is_transparent {
@@ -272,8 +297,8 @@ fn to_pattern(
                             "No field annotated with `#[source]` or `#[from]`, but requires one for `#[fatal(forward)]`.")
                         )?
                     };
-                    if let Some(_ident) = _ident {
-                        assert!(_ident.is_none());
+                    if let Some(ident) = ident {
+                        assert!(ident.is_none());
                     }
                     // let fwd_field = fwd_field.as_ref().unwrap();
                     let field_name = fwd_field
@@ -324,11 +349,8 @@ fn to_pattern(
         Fields::Unnamed(fields) => {
             let (mut field_pats, resolution) = {
                 let fwd_keyword = match &requested_resolution_mode {
-                    ResolutionMode::NoAnnotation => Some(kw::forward {
-                        span: requested_resolution_mode.span(),
-                    }),
                     ResolutionMode::Forward(keyword, _ident) => Some(*keyword),
-                    _ => None,
+                    ResolutionMode::WithExplicitBool(_) => None,
                 };
                 if let Some(fwd_keyword) = fwd_keyword {
                     // obtain the i of the i-th unnamed field.
@@ -410,7 +432,7 @@ fn to_pattern(
             if let ResolutionMode::Forward(..) = requested_resolution_mode {
                 return Err(syn::Error::new(
                     span,
-                    "Cannot forward to a unit item variant",
+                    "cannot forward to a unit item variant",
                 ));
             }
             (

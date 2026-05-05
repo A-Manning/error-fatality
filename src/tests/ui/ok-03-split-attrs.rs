@@ -30,7 +30,7 @@ struct Bobo;
 #[split(attrs(derive(Debug, Error)))]
 enum Kaboom {
 	#[error(transparent)]
-	#[fatal]
+	#[fatal(true)]
 	Iffy(#[from] Fatal),
 
 	#[error(transparent)]

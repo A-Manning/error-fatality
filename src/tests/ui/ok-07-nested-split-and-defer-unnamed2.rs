@@ -20,11 +20,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
 enum Inner {
-	#[fatal]
 	#[error("That's it.")]
+	#[fatal(true)]
 	GameOver,
 
 	#[error("Chuckle")]
+	#[fatal(false)]
 	ChuckleOn,
 }
 
@@ -36,6 +37,7 @@ enum Kaboom {
 	Iffy(u32, #[source] Inner, u64),
 
 	#[error("Bobo")]
+	#[fatal(false)]
 	Bobo,
 }
 

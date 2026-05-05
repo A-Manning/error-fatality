@@ -20,11 +20,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
 enum Wormhole {
-	#[fatal]
 	#[error("Ice baby")]
+	#[fatal(true)]
 	Neptun,
 
 	#[error("So close")]
+	#[fatal(false)]
 	Moon,
 }
 
@@ -35,17 +36,19 @@ enum Inner {
 	Wormhole(Wormhole),
 
 	#[error("Abyss")]
+	#[fatal(false)]
 	Abyss,
 }
 
 
 #[derive(Debug, Error, Fatality, Split)]
 enum Kaboom {
-	#[fatal(forward)]
     #[error(transparent)]
+	#[fatal(forward)]
 	Iffy(Inner),
 
 	#[error("Bobo")]
+	#[fatal(false)]
 	Bobo,
 }
 

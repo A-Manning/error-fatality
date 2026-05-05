@@ -16,12 +16,12 @@ fn run_test(input: TokenStream, expected: TokenStream) {
 }
 
 #[test]
-fn transparent_fatal_implicit() {
+fn transparent_fatal_explitit() {
     run_test(
         quote! {
             enum Q {
-                #[fatal]
                 #[error(transparent)]
+                #[fatal(true)]
                 V(I),
             }
         },
@@ -42,8 +42,8 @@ fn transparent_fatal_fwd() {
     run_test(
         quote! {
             enum Q {
-                #[fatal(forward)]
                 #[error(transparent)]
+                #[fatal(forward)]
                 V(I),
             }
         },
@@ -64,8 +64,8 @@ fn transparent_fatal_true() {
     run_test(
         quote! {
             enum Q {
-                #[fatal(true)]
                 #[error(transparent)]
+                #[fatal(true)]
                 V(I),
             }
         },
@@ -86,8 +86,8 @@ fn source_fatal() {
     run_test(
         quote! {
             enum Q {
-                #[fatal(forward)]
                 #[error("DDDDDDDDDDDD")]
+                #[fatal(forward)]
                 V(first, #[source] I),
             }
         },
@@ -108,25 +108,26 @@ fn full() {
     run_test(
         quote! {
             enum Kaboom {
-                #[fatal(forward)]
                 #[error(transparent)]
+                #[fatal(forward)]
                 // only one arg, that's ok, the first will be used
                 A(X),
 
-                #[fatal(forward)]
                 #[error("Bar")]
+                #[fatal(forward)]
                 B(#[source] Y),
 
-                #[fatal(forward)]
                 #[error("zzzZZzZ")]
+                #[fatal(forward)]
                 C {#[source] z: Z },
 
                 #[error("What?")]
+                #[fatal(false)]
                 What,
 
 
-                #[fatal]
                 #[error(transparent)]
+                #[fatal(true)]
                 O(P),
             }
         },
@@ -150,6 +151,7 @@ fn full() {
 fn strukt_01_forward() {
     run_test(
         quote! {
+            #[fatal(forward)]
             pub struct X {
                 #[source]
                 inner: InnerError,
@@ -169,8 +171,8 @@ fn strukt_01_forward() {
 fn strukt_02_explicit_fatal() {
     run_test(
         quote! {
-            #[fatal(true)]
             #[error("Mission abort. Maybe?")]
+            #[fatal(true)]
             pub struct X {
                 #[source]
                 inner: InnerError,
@@ -187,31 +189,11 @@ fn strukt_02_explicit_fatal() {
 }
 
 #[test]
-fn strukt_03_implicit_fatal() {
-    run_test(
-        quote! {
-            #[fatal]
-            #[error("Mission abort. Maybe?")]
-            pub struct X {
-                #[source]
-                inner: InnerError,
-            }
-        },
-        quote! {
-            impl crate :: Fatality for X {
-                fn is_fatal (& self) -> bool {
-                    true
-                }
-            }
-        },
-    );
-}
-#[test]
 fn strukt_03_explicit_jfyi() {
     run_test(
         quote! {
-            #[fatal(false)]
             #[error("Mission abort. Maybe?")]
+            #[fatal(false)]
             pub struct X {
                 #[source]
                 inner: InnerError,
