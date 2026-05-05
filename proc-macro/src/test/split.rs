@@ -103,8 +103,8 @@ fn regression() {
     run_test(
         quote! {
             pub enum X {
-                #[fatal(true)]
                 #[error("Cancelled")]
+                #[fatal(true)]
                 Inner(Foo),
             }
         },
@@ -139,6 +139,250 @@ fn regression() {
                 fn split (self) -> :: std :: result :: Result < Self :: Jfyi , Self :: Fatal > {
                     match self {
                         Self::Inner(arg_0) => Err (FatalX :: Inner(arg_0)) ,
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn no_attrs() {
+    let output = quote! {
+        pub enum FatalX {
+            #[error("Cancelled")]
+            Inner(Foo)
+        }
+
+        impl ::std::convert::From<FatalX> for X {
+            fn from(fatal: FatalX) -> Self {
+                match fatal {
+                    FatalX::Inner(arg_0) => Self::Inner(arg_0),
+                }
+            }
+        }
+
+        pub enum JfyiX { }
+
+        impl ::std::convert::From<JfyiX> for X {
+            fn from(jfyi: JfyiX) -> Self {
+                match jfyi { }
+            }
+        }
+
+        impl crate::Split for X {
+            type Fatal = FatalX;
+            type Jfyi = JfyiX;
+            fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                match self {
+                    Self::Inner(arg_0) => Err(FatalX::Inner(arg_0)) ,
+                }
+            }
+        }
+    };
+    run_test(
+        quote! {
+            #[split(attrs())]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output.clone(),
+    );
+    run_test(
+        quote! {
+            #[split(fatal(attrs()), attrs())]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output.clone(),
+    );
+    run_test(
+        quote! {
+            #[split(attrs(), fatal(attrs()))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output.clone(),
+    );
+    run_test(
+        quote! {
+            #[split(jfyi(attrs()), attrs())]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output.clone(),
+    );
+    run_test(
+        quote! {
+            #[split(attrs(), jfyi(attrs()))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output.clone(),
+    );
+    run_test(
+        quote! {
+            #[split(fatal(attrs()), jfyi(attrs()))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        output,
+    );
+}
+
+#[test]
+fn no_fatal_attrs() {
+    run_test(
+        quote! {
+            #[split(fatal(attrs()))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        quote! {
+            pub enum FatalX {
+                #[error("Cancelled")]
+                Inner(Foo)
+            }
+
+            impl ::std::convert::From<FatalX> for X {
+                fn from(fatal: FatalX) -> Self {
+                    match fatal {
+                        FatalX::Inner(arg_0) => Self::Inner(arg_0),
+                    }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum JfyiX { }
+
+            impl ::std::convert::From<JfyiX> for X {
+                fn from(jfyi: JfyiX) -> Self {
+                    match jfyi { }
+                }
+            }
+
+            impl crate::Split for X {
+                type Fatal = FatalX;
+                type Jfyi = JfyiX;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match self {
+                        Self::Inner(arg_0) => Err(FatalX::Inner(arg_0)) ,
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn no_jfyi_attrs() {
+    run_test(
+        quote! {
+            #[split(jfyi(attrs()))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum FatalX {
+                #[error("Cancelled")]
+                Inner(Foo)
+            }
+
+            impl ::std::convert::From<FatalX> for X {
+                fn from(fatal: FatalX) -> Self {
+                    match fatal {
+                        FatalX::Inner(arg_0) => Self::Inner(arg_0),
+                    }
+                }
+            }
+
+            pub enum JfyiX { }
+
+            impl ::std::convert::From<JfyiX> for X {
+                fn from(jfyi: JfyiX) -> Self {
+                    match jfyi { }
+                }
+            }
+
+            impl crate::Split for X {
+                type Fatal = FatalX;
+                type Jfyi = JfyiX;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match self {
+                        Self::Inner(arg_0) => Err(FatalX::Inner(arg_0)) ,
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn rename_fatal() {
+    run_test(
+        quote! {
+            #[split(fatal(ident = "RenamedFatalXRenamed"))]
+            pub enum X {
+                #[fatal(true)]
+                #[error("Cancelled")]
+                Inner(Foo),
+            }
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum RenamedFatalXRenamed {
+                #[error("Cancelled")]
+                Inner(Foo)
+            }
+
+            impl ::std::convert::From<RenamedFatalXRenamed> for X {
+                fn from(fatal: RenamedFatalXRenamed) -> Self {
+                    match fatal {
+                        RenamedFatalXRenamed::Inner(arg_0) => Self::Inner(arg_0),
+                    }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum JfyiX { }
+
+            impl ::std::convert::From<JfyiX> for X {
+                fn from(jfyi: JfyiX) -> Self {
+                    match jfyi { }
+                }
+            }
+
+            impl crate::Split for X {
+                type Fatal = RenamedFatalXRenamed;
+                type Jfyi = JfyiX;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match self {
+                        Self::Inner(arg_0) => Err(RenamedFatalXRenamed::Inner(arg_0)) ,
                     }
                 }
             }

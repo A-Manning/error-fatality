@@ -6,201 +6,13 @@ use syn::{
     punctuated::Punctuated, spanned::Spanned as _,
 };
 
-use crate::types::{
-    DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern, struct_to_pattern,
-    unnamed_fields_variant_pattern_constructor_binding_name,
+use crate::{
+    split::{SplitVariant, opts::Opts},
+    types::{
+        DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern, struct_to_pattern,
+        unnamed_fields_variant_pattern_constructor_binding_name,
+    },
 };
-
-mod opts {
-    //! Options provided via the `#[split(_)]` attribute
-
-    use proc_macro2::Span;
-    use quote::ToTokens as _;
-    use syn::{
-        Attribute, Meta, PathArguments, Token, punctuated::Punctuated, spanned::Spanned,
-        token::PathSep,
-    };
-
-    /// Construct path segments (without arguments) from idents
-    fn path_segments<'a, I>(
-        span: Span,
-        idents: I,
-    ) -> syn::punctuated::Punctuated<syn::PathSegment, PathSep>
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        idents
-            .into_iter()
-            .map(|ident| syn::PathSegment {
-                ident: syn::Ident::new(ident, span),
-                arguments: PathArguments::None,
-            })
-            .collect()
-    }
-
-    /// Construct path from root, from idents.
-    /// ie. `path_from_root(["core", "fmt", "Debug"])` will construct the path
-    /// `::core::fmt::Debug`.
-    fn path_from_root<'a, I>(span: Span, idents: I) -> syn::Path
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        syn::Path {
-            leading_colon: Some(syn::token::PathSep::default()),
-            segments: path_segments(span, idents),
-        }
-    }
-
-    /// ::std::fmt::Debug
-    fn debug_path_from_root(span: Span) -> syn::Path {
-        path_from_root(span, ["std", "fmt", "Debug"])
-    }
-
-    /// ::thiserror::Error
-    fn thiserror_path_from_root(span: Span) -> syn::Path {
-        path_from_root(span, ["thiserror", "Error"])
-    }
-
-    /// Default derives for split errors
-    fn default_split_derives(span: Span) -> [syn::Path; 2] {
-        [debug_path_from_root(span), thiserror_path_from_root(span)]
-    }
-
-    /// Construct an outer attribute from attribute content
-    fn outer_attr(meta: syn::Meta) -> syn::Attribute {
-        syn::Attribute {
-            pound_token: Default::default(),
-            style: syn::AttrStyle::Outer,
-            bracket_token: Default::default(),
-            meta,
-        }
-    }
-
-    /// Construct a derive attribute, with the specified derives
-    fn derive_attr(span: Span, derives: Punctuated<syn::Meta, syn::Token![,]>) -> syn::Attribute {
-        let meta_path = syn::PathSegment {
-            ident: syn::Ident::new("derive", span),
-            arguments: syn::PathArguments::None,
-        };
-        let meta = syn::Meta::List(syn::MetaList {
-            path: meta_path.into(),
-            delimiter: syn::MacroDelimiter::Paren(syn::token::Paren::default()),
-            tokens: derives.to_token_stream(),
-        });
-        outer_attr(meta)
-    }
-
-    /// Default derive attr for split errors
-    fn default_split_derive_attr(span: Span) -> syn::Attribute {
-        let derives = default_split_derives(span)
-            .into_iter()
-            .map(syn::Meta::Path)
-            .collect();
-        derive_attr(span, derives)
-    }
-
-    #[derive(Clone, Debug)]
-    #[repr(transparent)]
-    pub(in crate::types::split) struct Attrs(Option<Punctuated<Meta, Token![,]>>);
-
-    impl Attrs {
-        /// Generate attrs for split errors
-        pub fn split_error_attrs(self, span: Span, original_attrs: &[Attribute]) -> Vec<Attribute> {
-            if let Some(attrs) = self.0 {
-                attrs.into_iter().map(outer_attr).collect()
-            } else {
-                let derive_attr = default_split_derive_attr(span);
-                let retained_attrs = original_attrs
-                    .iter()
-                    .filter(|attr| !attr.path().is_ident("split"))
-                    .cloned();
-                std::iter::once(derive_attr).chain(retained_attrs).collect()
-            }
-        }
-    }
-
-    /// Options provided via the `#[split(_)]` attribute
-    #[derive(Clone, Debug)]
-    #[repr(transparent)]
-    pub(in crate::types::split) struct Opts {
-        pub attrs: Attrs,
-    }
-
-    impl Opts {
-        const INVALID_ATTR_PATH_ERR_MSG: &str = "invalid attribute path";
-
-        const INVALID_SYNTAX_ERR_MSG: &str = "invalid syntax for `split` attribute";
-
-        const MULTIPLE_ATTRS_ERR_MSG: &str = "cannot set attrs multiple times";
-
-        /// Parse from a single attribute. Returns an error if the attribute path
-        /// does not match.
-        fn from_attr(attr: &syn::Attribute) -> syn::Result<Self> {
-            let mut res = Self { attrs: Attrs(None) };
-            if !attr.path().is_ident("split") {
-                return Err(syn::Error::new(
-                    attr.span(),
-                    Self::INVALID_ATTR_PATH_ERR_MSG,
-                ));
-            };
-            let nested = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-            if nested.is_empty() {
-                return Err(syn::Error::new(nested.span(), Self::INVALID_SYNTAX_ERR_MSG));
-            }
-            for meta in nested {
-                match meta {
-                    Meta::List(meta) if meta.path.is_ident("attrs") => {
-                        if res.attrs.0.is_none() {
-                            res.attrs.0 = Some(meta.parse_args_with(
-                                Punctuated::<Meta, Token![,]>::parse_terminated,
-                            )?);
-                        } else {
-                            return Err(syn::Error::new(meta.span(), Self::MULTIPLE_ATTRS_ERR_MSG));
-                        }
-                    }
-                    Meta::List(_) | Meta::NameValue(_) | Meta::Path(_) => {
-                        return Err(syn::Error::new(meta.span(), Self::INVALID_SYNTAX_ERR_MSG));
-                    }
-                }
-            }
-            Ok(res)
-        }
-
-        fn extend(self, other: Self) -> syn::Result<Self> {
-            let Self {
-                attrs: Attrs(l_attrs),
-            } = self;
-            let Self {
-                attrs: Attrs(r_attrs),
-            } = other;
-            let attrs = match (l_attrs, r_attrs) {
-                (l_attrs, None) => l_attrs,
-                (None, Some(r_attrs)) => Some(r_attrs),
-                (Some(_), Some(r_attrs)) => {
-                    return Err(syn::Error::new(
-                        r_attrs.span(),
-                        Self::MULTIPLE_ATTRS_ERR_MSG,
-                    ));
-                }
-            };
-            Ok(Self {
-                attrs: Attrs(attrs),
-            })
-        }
-
-        pub(crate) fn from_attrs(attrs: &[syn::Attribute]) -> syn::Result<Self> {
-            let mut res = Self { attrs: Attrs(None) };
-            for attr in attrs {
-                if !attr.path().is_ident("split") {
-                    continue;
-                }
-                res = res.extend(Self::from_attr(attr)?)?;
-            }
-            Ok(res)
-        }
-    }
-}
-use opts::Opts;
 
 #[derive(Hash, Debug)]
 struct VariantPattern(Variant);
@@ -308,12 +120,13 @@ fn enum_impl(
 
     // Generate the splitable types:
     //   Fatal
-    let fatal_ident = Ident::new(format!("Fatal{}", original.ident).as_str(), span);
+    let fatal_ident = split_opts
+        .ident(SplitVariant::Fatal)
+        .unwrap_or_else(|| format!("Fatal{}", original.ident));
+    let fatal_ident = Ident::new(fatal_ident.as_str(), span);
     let fatal = {
-        let attrs = split_opts
-            .attrs
-            .clone()
-            .split_error_attrs(Span::call_site(), &original.attrs);
+        let attrs =
+            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Fatal);
         ItemEnum {
             attrs,
             vis: original.vis.clone(),
@@ -326,11 +139,13 @@ fn enum_impl(
     };
 
     //  Informational (just for your information)
-    let jfyi_ident = Ident::new(format!("Jfyi{}", original.ident).as_str(), span);
+    let jfyi_ident = split_opts
+        .ident(SplitVariant::Jfyi)
+        .unwrap_or_else(|| format!("Jfyi{}", original.ident));
+    let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
     let jfyi = {
-        let attrs = split_opts
-            .attrs
-            .split_error_attrs(Span::call_site(), &original.attrs);
+        let attrs =
+            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Jfyi);
         ItemEnum {
             attrs,
             vis: original.vis,
@@ -515,12 +330,13 @@ fn struct_impl(
 
     // Generate the splitable types:
     //   Fatal
-    let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
+    let fatal_ident = split_opts
+        .ident(SplitVariant::Fatal)
+        .unwrap_or_else(|| format!("Fatal{}", original.ident));
+    let fatal_ident = Ident::new(fatal_ident.as_str(), span);
     let fatal = {
-        let attrs = split_opts
-            .attrs
-            .clone()
-            .split_error_attrs(Span::call_site(), &original.attrs);
+        let attrs =
+            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Fatal);
         let mut fields = original.data.fields.clone();
         if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_fatal_path = split_trait.clone();
@@ -552,11 +368,13 @@ fn struct_impl(
         }
     };
     //  Informational (just for your information)
-    let jfyi_ident = Ident::new(format!("Jfyi{}", original_ident).as_str(), span);
+    let jfyi_ident = split_opts
+        .ident(SplitVariant::Jfyi)
+        .unwrap_or_else(|| format!("Jfyi{}", original.ident));
+    let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
     let jfyi = {
-        let attrs = split_opts
-            .attrs
-            .split_error_attrs(Span::call_site(), &original.attrs);
+        let attrs =
+            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Jfyi);
         let mut fields = original.data.fields.clone();
         if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_jfyi_path = split_trait.clone();
