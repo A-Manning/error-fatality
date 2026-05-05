@@ -36,6 +36,7 @@ fn simple() {
                 Explosion
             }
 
+            #[automatically_derived]
             impl ::std::convert::From<FatalKaboom> for Kaboom {
                 fn from(fatal: FatalKaboom) -> Self {
                     match fatal {
@@ -50,6 +51,7 @@ fn simple() {
                 Eh
             }
 
+            #[automatically_derived]
             impl ::std::convert::From<JfyiKaboom> for Kaboom {
                 fn from(jfyi: JfyiKaboom) -> Self {
                     match jfyi {
@@ -58,6 +60,7 @@ fn simple() {
                 }
             }
 
+            #[automatically_derived]
             impl crate::Split for Kaboom {
                 type Fatal = FatalKaboom;
                 type Jfyi = JfyiKaboom;
@@ -115,6 +118,7 @@ fn regression() {
                 Inner (Foo)
             }
 
+            #[automatically_derived]
             impl :: std :: convert :: From < FatalX > for X {
                 fn from (fatal : FatalX) -> Self {
                     match fatal {
@@ -126,6 +130,7 @@ fn regression() {
             #[derive(::std::fmt::Debug, ::thiserror::Error)]
             pub enum JfyiX { }
 
+            #[automatically_derived]
             impl :: std :: convert :: From < JfyiX > for X {
                 fn from (jfyi : JfyiX) -> Self {
                     match jfyi {
@@ -133,6 +138,7 @@ fn regression() {
                 }
             }
 
+            #[automatically_derived]
             impl crate :: Split for X {
                 type Fatal = FatalX ;
                 type Jfyi = JfyiX ;
@@ -154,6 +160,7 @@ fn no_attrs() {
             Inner(Foo)
         }
 
+        #[automatically_derived]
         impl ::std::convert::From<FatalX> for X {
             fn from(fatal: FatalX) -> Self {
                 match fatal {
@@ -164,12 +171,14 @@ fn no_attrs() {
 
         pub enum JfyiX { }
 
+        #[automatically_derived]
         impl ::std::convert::From<JfyiX> for X {
             fn from(jfyi: JfyiX) -> Self {
                 match jfyi { }
             }
         }
 
+        #[automatically_derived]
         impl crate::Split for X {
             type Fatal = FatalX;
             type Jfyi = JfyiX;
@@ -265,6 +274,7 @@ fn no_fatal_attrs() {
                 Inner(Foo)
             }
 
+            #[automatically_derived]
             impl ::std::convert::From<FatalX> for X {
                 fn from(fatal: FatalX) -> Self {
                     match fatal {
@@ -276,12 +286,14 @@ fn no_fatal_attrs() {
             #[derive(::std::fmt::Debug, ::thiserror::Error)]
             pub enum JfyiX { }
 
+            #[automatically_derived]
             impl ::std::convert::From<JfyiX> for X {
                 fn from(jfyi: JfyiX) -> Self {
                     match jfyi { }
                 }
             }
 
+            #[automatically_derived]
             impl crate::Split for X {
                 type Fatal = FatalX;
                 type Jfyi = JfyiX;
@@ -313,6 +325,7 @@ fn no_jfyi_attrs() {
                 Inner(Foo)
             }
 
+            #[automatically_derived]
             impl ::std::convert::From<FatalX> for X {
                 fn from(fatal: FatalX) -> Self {
                     match fatal {
@@ -323,12 +336,14 @@ fn no_jfyi_attrs() {
 
             pub enum JfyiX { }
 
+            #[automatically_derived]
             impl ::std::convert::From<JfyiX> for X {
                 fn from(jfyi: JfyiX) -> Self {
                     match jfyi { }
                 }
             }
 
+            #[automatically_derived]
             impl crate::Split for X {
                 type Fatal = FatalX;
                 type Jfyi = JfyiX;
@@ -360,6 +375,7 @@ fn rename_fatal() {
                 Inner(Foo)
             }
 
+            #[automatically_derived]
             impl ::std::convert::From<RenamedFatalXRenamed> for X {
                 fn from(fatal: RenamedFatalXRenamed) -> Self {
                     match fatal {
@@ -371,12 +387,14 @@ fn rename_fatal() {
             #[derive(::std::fmt::Debug, ::thiserror::Error)]
             pub enum JfyiX { }
 
+            #[automatically_derived]
             impl ::std::convert::From<JfyiX> for X {
                 fn from(jfyi: JfyiX) -> Self {
                     match jfyi { }
                 }
             }
 
+            #[automatically_derived]
             impl crate::Split for X {
                 type Fatal = RenamedFatalXRenamed;
                 type Jfyi = JfyiX;

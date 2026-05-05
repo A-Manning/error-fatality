@@ -18,6 +18,7 @@ fn enum_impl(
 
     let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
     quote! {
+        #[automatically_derived]
         impl #fatality_trait for #who {
             fn is_fatal(&self) -> bool {
                 match self {
@@ -68,6 +69,7 @@ fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
         },
     };
     quote! {
+        #[automatically_derived]
         impl #fatality_trait for #who {
             fn is_fatal(&self) -> bool {
                 #resolution

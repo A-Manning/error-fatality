@@ -26,6 +26,7 @@ fn transparent_fatal_explitit() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate::Fatality for Q {
                 fn is_fatal(&self) -> bool {
                     match self {
@@ -48,6 +49,7 @@ fn transparent_fatal_fwd() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate::Fatality for Q {
                 fn is_fatal(&self) -> bool {
                     match self {
@@ -70,6 +72,7 @@ fn transparent_fatal_true() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate::Fatality for Q {
                 fn is_fatal(&self) -> bool {
                     match self {
@@ -92,6 +95,7 @@ fn source_fatal() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate::Fatality for Q {
                 fn is_fatal(&self) -> bool {
                     match self {
@@ -132,6 +136,7 @@ fn full() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate::Fatality for Kaboom {
                 fn is_fatal(&self) -> bool {
                     match self {
@@ -158,6 +163,7 @@ fn strukt_01_forward() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate :: Fatality for X {
                 fn is_fatal (& self) -> bool {
                     crate::Fatality::is_fatal(&self.inner)
@@ -179,6 +185,7 @@ fn strukt_02_explicit_fatal() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate :: Fatality for X {
                 fn is_fatal (& self) -> bool {
                     true
@@ -200,6 +207,7 @@ fn strukt_03_explicit_jfyi() {
             }
         },
         quote! {
+            #[automatically_derived]
             impl crate :: Fatality for X {
                 fn is_fatal (& self) -> bool {
                     false

@@ -180,6 +180,7 @@ fn enum_impl(
     ts.extend(quote! {
         #fatal
 
+        #[automatically_derived]
         impl ::std::convert::From< #fatal_ident> for #original_ident {
             fn from(fatal: #fatal_ident) -> Self {
                 match fatal {
@@ -191,6 +192,7 @@ fn enum_impl(
 
         #jfyi
 
+        #[automatically_derived]
         impl ::std::convert::From< #jfyi_ident> for #original_ident {
             fn from(jfyi: #jfyi_ident) -> Self {
                 match jfyi {
@@ -239,7 +241,7 @@ fn enum_impl(
         .collect::<Vec<_>>();
 
     let split_trait_impl = quote! {
-
+        #[automatically_derived]
         impl #split_trait for #original_ident {
             type Fatal = #fatal_ident;
             type Jfyi = #jfyi_ident;
@@ -429,6 +431,7 @@ fn struct_impl(
     ts.extend(quote! {
         #fatal
 
+        #[automatically_derived]
         impl ::std::convert::From< #fatal_ident> for #original_ident {
             fn from(fatal: #fatal_ident) -> Self {
                 Self {
@@ -440,6 +443,7 @@ fn struct_impl(
 
         #jfyi
 
+        #[automatically_derived]
         impl ::std::convert::From< #jfyi_ident> for #original_ident {
             fn from(jfyi: #jfyi_ident) -> Self {
                 Self {
@@ -451,6 +455,7 @@ fn struct_impl(
     });
 
     let split_trait_impl = quote! {
+        #[automatically_derived]
         impl #split_trait for #original_ident {
             type Fatal = #fatal_ident;
             type Jfyi = #jfyi_ident;
