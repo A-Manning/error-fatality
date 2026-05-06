@@ -381,7 +381,7 @@ impl Opts {
                         }
                     }
                     if let Some(jfyi_ident) = jfyi_ident {
-                        let jfyi_ident = TargetedOpt::Fatal(jfyi_ident);
+                        let jfyi_ident = TargetedOpt::Jfyi(jfyi_ident);
                         res.ident = if let Some(ident) = res.ident.take() {
                             Some(ident.merge(jfyi_ident)?)
                         } else {

@@ -407,3 +407,124 @@ fn rename_fatal() {
         },
     );
 }
+
+#[test]
+fn cloned_attributes() {
+    run_test(
+        quote! {
+            #[error(transparent)]
+            #[fatal(forward)]
+            #[repr(transparent)]
+            struct Outer(#[from] Inner);
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            #[error(transparent)]
+            #[repr(transparent)]
+            struct FatalOuter(#[from] <Inner as crate::Split>::Fatal);
+
+            #[automatically_derived]
+            impl ::std::convert::From<FatalOuter> for Outer {
+                fn from(fatal: FatalOuter) -> Self {
+                    Self { 0: Inner::from(fatal.0), }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            #[error(transparent)]
+            #[repr(transparent)]
+            struct JfyiOuter(#[from] <Inner as crate::Split>::Jfyi);
+
+            #[automatically_derived]
+            impl ::std::convert::From<JfyiOuter> for Outer {
+                fn from(jfyi: JfyiOuter) -> Self {
+                    Self { 0: Inner::from(jfyi.0), }
+                }
+            }
+
+            #[automatically_derived]
+            impl crate::Split for Outer {
+                type Fatal = FatalOuter;
+                type Jfyi = JfyiOuter;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match crate :: Split :: split (self . 0) {
+                        Err(fatal) => Err(FatalOuter { 0: fatal, }),
+                        Ok(jfyi) => Ok(JfyiOuter { 0: jfyi, }),
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn all_attr_options() {
+    run_test(
+        quote! {
+            #[error(transparent)]
+            #[fatal(forward)]
+            #[repr(transparent)]
+            #[split(
+                // These options apply only to the fatal variant
+                fatal(ident = "CustomFatalIdent"),
+                // These options apply only to the non-fatal variant
+                jfyi(
+                    attrs(
+                        derive(Debug, Default, Error),
+                        error("non-fatal error: {0}"),
+                        repr(transparent),
+                    ),
+                    ident = "CustomJfyiIdent",
+                ),
+                // These options apply to both variants, unless the same option is
+                // provided for a specific variant, in which case they apply to the
+                // other variant.
+                // Because the `attrs` option is specified for the non-fatal variant,
+                // these attributes will apply to the fatal variant.
+                attrs(
+                    derive(Debug, Error),
+                    error(transparent),
+                    repr(transparent),
+                ),
+            )]
+            struct Outer(#[from] Inner);
+        },
+        quote! {
+            #[derive(Debug, Error)]
+            #[error(transparent)]
+            #[repr(transparent)]
+            struct CustomFatalIdent(#[from] <Inner as crate::Split>::Fatal);
+
+            #[automatically_derived]
+            impl ::std::convert::From<CustomFatalIdent> for Outer {
+                fn from(fatal: CustomFatalIdent) -> Self {
+                    Self { 0: Inner::from(fatal.0), }
+                }
+            }
+
+            #[derive(Debug, Default, Error)]
+            #[error("non-fatal error: {0}")]
+            #[repr(transparent)]
+            struct CustomJfyiIdent(#[from] <Inner as crate::Split>::Jfyi);
+
+            #[automatically_derived]
+            impl ::std::convert::From<CustomJfyiIdent> for Outer {
+                fn from(jfyi: CustomJfyiIdent) -> Self {
+                    Self { 0: Inner::from(jfyi.0), }
+                }
+            }
+
+            #[automatically_derived]
+            impl crate::Split for Outer {
+                type Fatal = CustomFatalIdent;
+                type Jfyi = CustomJfyiIdent;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match crate :: Split :: split (self . 0) {
+                        Err(fatal) => Err(CustomFatalIdent { 0: fatal, }),
+                        Ok(jfyi) => Ok(CustomJfyiIdent { 0: jfyi, }),
+                    }
+                }
+            }
+        },
+    );
+}

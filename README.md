@@ -22,52 +22,58 @@ Read on!
 
 ## Usage
 
-`#[fatality]` currently provides a `trait Fatality` with a single `fn is_fatal(&self) -> bool` by default.
+`#[derive(Fatality)]` currently provides a `trait Fatality` with a single `fn is_fatal(&self) -> bool` by default.
 
 Annotations with `forward` require the _inner_ error type to also implement `trait Fatality`.
 
-Annotating with `#[fatality(splitable)]`, allows to split the type into two sub-types, a `Jfyi*` and a `Fatal*` one via `fn split(self) -> Result<Self::Jfyi, Self::Fatal>`. If `splitable` is annotated.
+Annotating with `#[derive(Split)]`, allows to split the type into two sub-types, a `Jfyi*` and a `Fatal*` one via `fn split(self) -> Result<Self::Jfyi, Self::Fatal>`.
 
 The derive macro implements them, and can defer calls, based on `thiserror` annotations, specifically
 `#[source]` and `#[transparent]` on `enum` variants and their members.
 
+
 ```rust
-/// Fatality only works with `enum` for now.
-/// It will automatically add `#[derive(Debug, thiserror::Error)]`
-/// annotations.
-#[fatality]
+use fatality::Fatality;
+use thiserror::Error;
+
+#[derive(Debug, Error, Fatality)]
 enum OhMy {
     #[error("An apple a day")]
+    #[fatal(false)]
     Itsgonnabefine,
 
     /// Forwards the `is_fatal` to the `InnerError`, which has to implement `trait Fatality` as well.
-    #[fatal(forward)]
     #[error("Dropped dead")]
+    #[fatal(forward)]
     ReallyReallyBad(#[source] InnerError),
 
     /// Also works on `#[error(transparent)]
-    #[fatal(forward)]
     #[error(transparent)]
+    #[fatal(forward)]
     Translucent(InnerError),
 
 
     /// Will always return `is_fatal` as `true`,
     /// irrespective of `#[error(transparent)]` or
     /// `#[source]` annotations.
-    #[fatal]
     #[error("So dead")]
+    #[fatal(true)]
     SoDead(#[source] InnerError),
 }
 ```
 
 ```rust
-#[fatality(splitable)]
+use fatality::{Fatality, Split};
+use thiserror::Error;
+
+#[derive(Debug, Error, Fatality, Split)]
 enum Yikes {
     #[error("An apple a day")]
+    #[fatal(false)]
     Orange,
 
-    #[fatal]
     #[error("So dead")]
+    #[fatal(true)]
     Dead,
 }
 
@@ -89,8 +95,147 @@ fn i_call_foo_too() -> Result<(), FatalYikes> {
 }
 ```
 
-## Roadmap
+## Derive options
+`#[derive(Fatality)]` and `#[derive(Split)]` support a number of options via
+attributes.
 
-* [ ] Optionally reduce the marco overhead, replace `#[fatal($args)]#[error(..` with `#[fatal($args;..)]` and generate the correct `#[error]` annotations for `thiserror`.
-* [x] Add an optional arg to `finality`: `splitable` determines if a this is the root error that shall be handled, and hence should be splitable into two enums `Fatal` and `Jfyi` errors, with `trait Split` and `fn split() -> Result<Jfyi, Fatal> {..}`.
-* [ ] Allow annotations for `struct`s as well, to be all fatal or informational.
+### `#[derive(Fatality)]`
+
+The `#[fatal(_)]` attribute is mandatory on all enum variants and structs.
+This specifies the fatality of an error.
+There are three possible values: `true` for fatal errors, `false` for non-fatal
+errors, and `forward` if fatality should be determined by the error source field.
+
+### `#[derive(Split)]`
+
+By default, `#[derive(Split)]` will generate a `#[derive(::std::fmt::Debug, ::thiserror::Error)] attribute on each of the generated split error types.
+`#[derive(Split)]` also copies all other attributes.
+
+```rust
+use fatality::{Fatality, Split};
+use thiserror::Error;
+
+#[derive(Debug, Error, Fatality, Split)]
+#[error(transparent)]
+#[fatal(forward)]
+#[repr(transparent)]
+struct Outer(#[from] Inner);
+```
+
+generates
+
+```rust
+#[derive(::std::fmt::Debug, ::thiserror::Error)]
+#[error(transparent)]
+#[repr(transparent)]
+struct FatalOuter(#[from] <Inner as crate::Split>::Fatal);
+
+#[automatically_derived]
+impl ::std::convert::From<FatalOuter> for Outer {
+    fn from(fatal: FatalOuter) -> Self {
+        Self { 0: Inner::from(fatal.0), }
+    }
+}
+
+#[derive(::std::fmt::Debug, ::thiserror::Error)]
+#[error(transparent)]
+#[repr(transparent)]
+struct JfyiOuter(#[from] <Inner as crate::Split>::Jfyi);
+
+#[automatically_derived]
+impl ::std::convert::From<JfyiOuter> for Outer {
+    fn from(jfyi: JfyiOuter) -> Self {
+        Self { 0: Inner::from(jfyi.0), }
+    }
+}
+
+#[automatically_derived]
+impl crate::Split for Outer {
+    type Fatal = FatalOuter;
+    type Jfyi = JfyiOuter;
+    fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+        match crate :: Split :: split (self . 0) {
+            Err(fatal) => Err(FatalOuter { 0: fatal, }),
+            Ok(jfyi) => Ok(JfyiOuter { 0: jfyi, }),
+        }
+    }
+}
+```
+
+It is possible to manually specify the attributes that will be applied to
+each of the generated error variants, as well as the identifiers used:
+
+```rust
+use fatality::{Fatality, Split};
+use thiserror::Error;
+
+#[derive(Debug, Error, Fatality, Split)]
+#[error(transparent)]
+#[fatal(forward)]
+#[repr(transparent)]
+#[split(
+    // These options apply only to the fatal variant
+    fatal(ident = "CustomFatalIdent"),
+    // These options apply only to the non-fatal variant
+    jfyi(
+        attrs(
+            derive(Debug, Default, Error),
+            error("non-fatal error: {0}"),
+            repr(transparent),
+        ),
+        ident = "CustomJfyiIdent",
+    ),
+    // These options apply to both variants, unless the same option is
+    // provided for a specific variant, in which case they apply to the
+    // other variant.
+    // Because the `attrs` option is specified for the non-fatal variant,
+    // these attributes will apply to the fatal variant.
+    attrs(
+        derive(Debug, Error),
+        error(transparent),
+        repr(transparent),
+    ),
+)]
+struct Outer(#[from] Inner);
+```
+
+generates
+
+```rust
+#[derive(Debug, Error)]
+#[error(transparent)]
+#[repr(transparent)]
+struct CustomFatalIdent(#[from] <Inner as crate::Split>::Fatal);
+
+#[automatically_derived]
+impl ::std::convert::From<CustomFatalIdent> for Outer {
+    fn from(fatal: CustomFatalIdent) -> Self {
+        Self { 0: Inner::from(fatal.0), }
+    }
+}
+
+#[derive(Debug, Default, Error)]
+#[error("non-fatal error: {0}")]
+#[repr(transparent)]
+struct CustomJfyiIdent(#[from] <Inner as crate::Split>::Jfyi);
+
+#[automatically_derived]
+impl ::std::convert::From<CustomJfyiIdent> for Outer {
+    fn from(jfyi: CustomJfyiIdent) -> Self {
+        Self { 0: Inner::from(jfyi.0), }
+    }
+}
+
+#[automatically_derived]
+impl crate::Split for Outer {
+    type Fatal = CustomFatalIdent;
+    type Jfyi = CustomJfyiIdent;
+    fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+        match crate :: Split :: split (self . 0) {
+            Err(fatal) => Err(CustomFatalIdent { 0: fatal, }),
+            Ok(jfyi) => Ok(CustomJfyiIdent { 0: jfyi, }),
+        }
+    }
+}
+```
+
