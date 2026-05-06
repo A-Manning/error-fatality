@@ -2,14 +2,15 @@ use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{
-    DataEnum, DataStruct, Fields, Ident, ItemEnum, ItemStruct, Pat, PatIdent, Token, Variant,
-    punctuated::Punctuated, spanned::Spanned as _,
+    DataEnum, DataStruct, Fields, Ident, ItemEnum, ItemStruct, Pat, PatIdent,
+    Token, Variant, punctuated::Punctuated, spanned::Spanned as _,
 };
 
 use crate::{
     split::{SplitVariant, opts::Opts},
     types::{
-        DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern, struct_to_pattern,
+        DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern,
+        struct_to_pattern,
         unnamed_fields_variant_pattern_constructor_binding_name,
     },
 };
@@ -52,7 +53,10 @@ impl ToTokens for VariantPattern {
                             attrs: vec![],
                             by_ref: None,
                             mutability: None,
-                            ident: field.ident.clone().expect("Named field has a name. qed"),
+                            ident: field
+                                .ident
+                                .clone()
+                                .expect("Named field has a name. qed"),
                             subpat: None,
                         })
                     })
@@ -79,7 +83,9 @@ impl ToTokens for VariantConstructor {
                     .iter()
                     .enumerate()
                     .map(|(ith, _field)| {
-                        unnamed_fields_variant_pattern_constructor_binding_name(ith)
+                        unnamed_fields_variant_pattern_constructor_binding_name(
+                            ith,
+                        )
                     })
                     .collect::<Punctuated<Ident, Token![,]>>();
                 quote! { #variant_name (#constructor) }
@@ -125,8 +131,11 @@ fn enum_impl(
         .unwrap_or_else(|| format!("Fatal{}", original.ident));
     let fatal_ident = Ident::new(fatal_ident.as_str(), span);
     let fatal = {
-        let attrs =
-            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Fatal);
+        let attrs = split_opts.split_error_attrs(
+            Span::call_site(),
+            &original.attrs,
+            SplitVariant::Fatal,
+        );
         ItemEnum {
             attrs,
             vis: original.vis.clone(),
@@ -144,8 +153,11 @@ fn enum_impl(
         .unwrap_or_else(|| format!("Jfyi{}", original.ident));
     let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
     let jfyi = {
-        let attrs =
-            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Jfyi);
+        let attrs = split_opts.split_error_attrs(
+            Span::call_site(),
+            &original.attrs,
+            SplitVariant::Jfyi,
+        );
         ItemEnum {
             attrs,
             vis: original.vis,
@@ -204,7 +216,8 @@ fn enum_impl(
     });
 
     // Handle `forward` annotations.
-    let trait_fatality = abs_helper_path(format_ident!("Fatality"), Span::call_site());
+    let trait_fatality =
+        abs_helper_path(format_ident!("Fatality"), Span::call_site());
 
     // add a a `fatal` variant
     let fatal_patterns_w_if_maybe = fatal_variants
@@ -263,7 +276,9 @@ fn enum_impl(
     Ok(ts)
 }
 
-pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStream> {
+pub(crate) fn enum_gen(
+    mut item: DeriveInput<DataEnum>,
+) -> syn::Result<TokenStream> {
     let opts = Opts::from_attrs(&item.attrs)?;
     let mut resolution_lut = IndexMap::new();
 
@@ -273,14 +288,18 @@ pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStre
     // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
     for variant in item.data.variants.iter_mut() {
-        let resolution_mode = ResolutionMode::extract_from_variant_attrs(variant)?;
+        let resolution_mode =
+            ResolutionMode::extract_from_variant_attrs(variant)?;
 
         // Obtain the patterns for each variant, and the resolution, which can either
         // be `forward`, `true`, or `false`
         // as used in the `trait Fatality`.
-        let (_pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
+        let (_pattern, resolution_mode) =
+            enum_variant_to_pattern(variant, resolution_mode)?;
         match resolution_mode {
-            ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
+            ResolutionMode::Forward(_, None) => {
+                unreachable!("Must have an ident. qed")
+            }
             ResolutionMode::Forward(_, ref _ident) => {
                 jfyi_variants.push(variant.clone());
                 fatal_variants.push(variant.clone());
@@ -300,7 +319,10 @@ pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStre
 }
 
 /// Mutably borrow a field by index
-fn get_field_mut(fields: &mut syn::Fields, idx: usize) -> Option<&mut syn::Field> {
+fn get_field_mut(
+    fields: &mut syn::Fields,
+    idx: usize,
+) -> Option<&mut syn::Field> {
     match fields {
         syn::Fields::Named(fields) => fields.named.get_mut(idx),
         syn::Fields::Unnamed(fields) => fields.unnamed.get_mut(idx),
@@ -337,17 +359,17 @@ fn struct_impl(
         .unwrap_or_else(|| format!("Fatal{}", original.ident));
     let fatal_ident = Ident::new(fatal_ident.as_str(), span);
     let fatal = {
-        let attrs =
-            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Fatal);
+        let attrs = split_opts.split_error_attrs(
+            Span::call_site(),
+            &original.attrs,
+            SplitVariant::Fatal,
+        );
         let mut fields = original.data.fields.clone();
         if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_fatal_path = split_trait.clone();
-            split_fatal_path
-                .segments
-                .push(syn::PathSegment::from(syn::Ident::new(
-                    "Fatal",
-                    Span::call_site(),
-                )));
+            split_fatal_path.segments.push(syn::PathSegment::from(
+                syn::Ident::new("Fatal", Span::call_site()),
+            ));
             field.ty = syn::Type::Path(syn::TypePath {
                 qself: Some(syn::QSelf {
                     lt_token: syn::token::Lt(Span::call_site()),
@@ -375,17 +397,17 @@ fn struct_impl(
         .unwrap_or_else(|| format!("Jfyi{}", original.ident));
     let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
     let jfyi = {
-        let attrs =
-            split_opts.split_error_attrs(Span::call_site(), &original.attrs, SplitVariant::Jfyi);
+        let attrs = split_opts.split_error_attrs(
+            Span::call_site(),
+            &original.attrs,
+            SplitVariant::Jfyi,
+        );
         let mut fields = original.data.fields.clone();
         if let Some(field) = get_field_mut(&mut fields, split_field_idx) {
             let mut split_jfyi_path = split_trait.clone();
-            split_jfyi_path
-                .segments
-                .push(syn::PathSegment::from(syn::Ident::new(
-                    "Jfyi",
-                    Span::call_site(),
-                )));
+            split_jfyi_path.segments.push(syn::PathSegment::from(
+                syn::Ident::new("Jfyi", Span::call_site()),
+            ));
             field.ty = syn::Type::Path(syn::TypePath {
                 qself: Some(syn::QSelf {
                     lt_token: syn::token::Lt(Span::call_site()),
@@ -506,12 +528,12 @@ pub(crate) fn struct_gen(
         .position(|field| {
             field.attrs.iter().any(|field_attr| {
                 matches!(field_attr.style, syn::AttrStyle::Outer)
-                    && field_attr
-                        .meta
-                        .require_path_only()
-                        .is_ok_and(|field_attr_path| {
-                            field_attr_path.is_ident("from") || field_attr_path.is_ident("source")
-                        })
+                    && field_attr.meta.require_path_only().is_ok_and(
+                        |field_attr_path| {
+                            field_attr_path.is_ident("from")
+                                || field_attr_path.is_ident("source")
+                        },
+                    )
             })
         })
         .or_else(|| {
@@ -523,7 +545,9 @@ pub(crate) fn struct_gen(
             })
         })
         .or_else(|| match &item.data.fields {
-            syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => Some(0),
+            syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => {
+                Some(0)
+            }
             _ => None,
         })
     else {

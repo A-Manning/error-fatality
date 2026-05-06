@@ -24,10 +24,11 @@ fn i_call_foo() -> Result<(), FatalYikes> {
     unreachable!()
 }
 
+#[allow(clippy::print_stderr)]
 fn i_call_foo_too() -> Result<(), FatalYikes> {
     if let Err(should_be_fatal) = so_dead() {
         // bail if bad, otherwise just log it
-        println!("You won't get here: {:?}", should_be_fatal.split()?);
+        eprintln!("You won't get here: {:?}", should_be_fatal.split()?);
     } else {
         unreachable!("`fn foo()` returns an error. qed");
     }

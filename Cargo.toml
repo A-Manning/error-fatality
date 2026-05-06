@@ -2,6 +2,17 @@
 members = ["proc-macro", "src"]
 resolver = "3"
 
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+assertions_on_result_states = "allow"
+let_unit_value = "allow"
+wildcard_imports = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[workspace.lints.rust]
+let_underscore_drop = "deny"
+
 [workspace.package]
 version = "0.1.1"
 authors = ["Bernhard Schuster <bernhard@ahoi.io>"]

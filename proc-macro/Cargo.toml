@@ -19,6 +19,9 @@ expand = []
 [lib]
 proc-macro = true
 
+[lints]
+workspace = true
+
 [package]
 authors = { workspace = true }
 description = "Fatality extension to crate thiserror - proc-macro part"

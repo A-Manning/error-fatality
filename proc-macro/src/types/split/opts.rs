@@ -3,8 +3,8 @@
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    Attribute, LitStr, Meta, PathArguments, Token, parse::ParseStream, punctuated::Punctuated,
-    spanned::Spanned, token::PathSep,
+    Attribute, LitStr, Meta, PathArguments, Token, parse::ParseStream,
+    punctuated::Punctuated, spanned::Spanned, token::PathSep,
 };
 
 use crate::split::SplitVariant;
@@ -65,7 +65,10 @@ fn outer_attr(meta: syn::Meta) -> syn::Attribute {
 }
 
 /// Construct a derive attribute, with the specified derives
-fn derive_attr(span: Span, derives: Punctuated<syn::Meta, syn::Token![,]>) -> syn::Attribute {
+fn derive_attr(
+    span: Span,
+    derives: Punctuated<syn::Meta, syn::Token![,]>,
+) -> syn::Attribute {
     let meta_path = syn::PathSegment {
         ident: syn::Ident::new("derive", span),
         arguments: syn::PathArguments::None,
@@ -145,7 +148,11 @@ impl OptsInner {
         format!("invalid syntax for `{}` attribute", path.as_attr())
     }
 
-    fn parse_meta_list(&mut self, path: &OptsPath, meta: syn::MetaList) -> syn::Result<()> {
+    fn parse_meta_list(
+        &mut self,
+        path: &OptsPath,
+        meta: syn::MetaList,
+    ) -> syn::Result<()> {
         let Self { attrs, ident: _ } = self;
         if matches!(path, OptsPath::Split)
             && (meta.path.is_ident("fatal") || meta.path.is_ident("jfyi"))
@@ -153,9 +160,9 @@ impl OptsInner {
             Ok(())
         } else if meta.path.is_ident("attrs") {
             if attrs.is_none() {
-                *attrs = Some(Attrs(
-                    meta.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?,
-                ));
+                *attrs = Some(Attrs(meta.parse_args_with(
+                    Punctuated::<Meta, Token![,]>::parse_terminated,
+                )?));
                 Ok(())
             } else {
                 Err(syn::Error::new(meta.span(), Self::MULTIPLE_ATTRS_ERR_MSG))
@@ -198,7 +205,11 @@ impl OptsInner {
         }
     }
 
-    fn parse_meta(&mut self, path: &OptsPath, meta: syn::Meta) -> syn::Result<()> {
+    fn parse_meta(
+        &mut self,
+        path: &OptsPath,
+        meta: syn::Meta,
+    ) -> syn::Result<()> {
         match meta {
             Meta::List(meta) => self.parse_meta_list(path, meta),
             Meta::NameValue(meta) => self.parse_meta_name_value(path, meta),
@@ -212,7 +223,8 @@ impl OptsInner {
     fn parse(path: OptsPath) -> impl FnOnce(ParseStream) -> syn::Result<Self> {
         move |input| {
             let mut res = Self::default();
-            let nested = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+            let nested =
+                Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
             if nested.is_empty() {
                 return Err(syn::Error::new(
                     nested.span(),
@@ -250,12 +262,16 @@ impl<Opt> TargetedOpt<Opt> {
         match (variant, self) {
             (
                 SplitVariant::Fatal,
-                Self::Both { fatal, jfyi: _ } | Self::Either(fatal) | Self::Fatal(fatal),
+                Self::Both { fatal, jfyi: _ }
+                | Self::Either(fatal)
+                | Self::Fatal(fatal),
             ) => Some(fatal),
             (SplitVariant::Fatal, Self::Jfyi(_)) => None,
             (
                 SplitVariant::Jfyi,
-                Self::Both { fatal: _, jfyi } | Self::Either(jfyi) | Self::Jfyi(jfyi),
+                Self::Both { fatal: _, jfyi }
+                | Self::Either(jfyi)
+                | Self::Jfyi(jfyi),
             ) => Some(jfyi),
             (SplitVariant::Jfyi, Self::Fatal(_)) => None,
         }
@@ -304,7 +320,9 @@ where
             | (Self::Fatal(fatal), Self::Either(jfyi))
             | (Self::Fatal(fatal), Self::Jfyi(jfyi))
             | (Self::Jfyi(jfyi), Self::Either(fatal))
-            | (Self::Jfyi(jfyi), Self::Fatal(fatal)) => Ok(Self::Both { fatal, jfyi }),
+            | (Self::Jfyi(jfyi), Self::Fatal(fatal)) => {
+                Ok(Self::Both { fatal, jfyi })
+            }
         }
     }
 }
@@ -335,9 +353,13 @@ impl Opts {
                 Self::INVALID_ATTR_PATH_ERR_MSG,
             ));
         };
-        let nested = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+        let nested = attr
+            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
         if nested.is_empty() {
-            return Err(syn::Error::new(nested.span(), Self::INVALID_SYNTAX_ERR_MSG));
+            return Err(syn::Error::new(
+                nested.span(),
+                Self::INVALID_SYNTAX_ERR_MSG,
+            ));
         }
         for meta in nested {
             match meta {
@@ -345,9 +367,9 @@ impl Opts {
                     let OptsInner {
                         attrs: fatal_attrs,
                         ident: fatal_ident,
-                    } = meta.parse_args_with(OptsInner::parse(OptsPath::Inner(
-                        OptsInnerPath::SplitFatal,
-                    )))?;
+                    } = meta.parse_args_with(OptsInner::parse(
+                        OptsPath::Inner(OptsInnerPath::SplitFatal),
+                    ))?;
                     if let Some(fatal_attrs) = fatal_attrs {
                         let fatal_attrs = TargetedOpt::Fatal(fatal_attrs);
                         res.attrs = if let Some(attrs) = res.attrs.take() {
@@ -369,9 +391,9 @@ impl Opts {
                     let OptsInner {
                         attrs: jfyi_attrs,
                         ident: jfyi_ident,
-                    } = meta.parse_args_with(OptsInner::parse(OptsPath::Inner(
-                        OptsInnerPath::SplitJfyi,
-                    )))?;
+                    } = meta.parse_args_with(OptsInner::parse(
+                        OptsPath::Inner(OptsInnerPath::SplitJfyi),
+                    ))?;
                     if let Some(jfyi_attrs) = jfyi_attrs {
                         let jfyi_attrs = TargetedOpt::Jfyi(jfyi_attrs);
                         res.attrs = if let Some(attrs) = res.attrs.take() {
@@ -408,7 +430,10 @@ impl Opts {
                     }
                 }
                 Meta::NameValue(_) | Meta::Path(_) => {
-                    return Err(syn::Error::new(meta.span(), Self::INVALID_SYNTAX_ERR_MSG));
+                    return Err(syn::Error::new(
+                        meta.span(),
+                        Self::INVALID_SYNTAX_ERR_MSG,
+                    ));
                 }
             }
         }
@@ -467,12 +492,17 @@ impl Opts {
                 .iter()
                 .filter(|attr| !attr.path().is_ident("split"))
                 .cloned();
-            return std::iter::once(derive_attr).chain(retained_attrs).collect();
+            return std::iter::once(derive_attr)
+                .chain(retained_attrs)
+                .collect();
         };
         attrs.0.iter().cloned().map(outer_attr).collect()
     }
 
-    pub(in crate::types::split) fn ident(&self, variant: SplitVariant) -> Option<String> {
+    pub(in crate::types::split) fn ident(
+        &self,
+        variant: SplitVariant,
+    ) -> Option<String> {
         self.ident
             .as_ref()
             .and_then(|ident| ident.as_ref().extract(variant))

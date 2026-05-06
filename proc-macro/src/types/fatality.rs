@@ -4,7 +4,8 @@ use quote::quote;
 use syn::{DataEnum, DataStruct, Ident, Pat, Variant};
 
 use crate::types::{
-    DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern, struct_to_pattern,
+    DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern,
+    struct_to_pattern,
 };
 
 /// Implement `trait Fatality` for `who`.
@@ -16,7 +17,8 @@ fn enum_impl(
     let pat = pattern_lut.values();
     let resolution = resolution_lut.values();
 
-    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    let fatality_trait =
+        abs_helper_path(Ident::new("Fatality", who.span()), who.span());
     quote! {
         #[automatically_derived]
         impl #fatality_trait for #who {
@@ -29,19 +31,23 @@ fn enum_impl(
     }
 }
 
-pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStream> {
+pub(crate) fn enum_gen(
+    mut item: DeriveInput<DataEnum>,
+) -> syn::Result<TokenStream> {
     let mut resolution_lut = IndexMap::new();
     let mut pattern_lut = IndexMap::new();
 
     // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
     for variant in item.data.variants.iter_mut() {
-        let resolution_mode = ResolutionMode::extract_from_variant_attrs(variant)?;
+        let resolution_mode =
+            ResolutionMode::extract_from_variant_attrs(variant)?;
 
         // Obtain the patterns for each variant, and the resolution, which can either
         // be `forward`, `true`, or `false`
         // as used in the `trait Fatality`.
-        let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
+        let (pattern, resolution_mode) =
+            enum_variant_to_pattern(variant, resolution_mode)?;
         if let ResolutionMode::Forward(_, None) = resolution_mode {
             unreachable!("Must have an ident. qed")
         }
@@ -54,7 +60,8 @@ pub(crate) fn enum_gen(mut item: DeriveInput<DataEnum>) -> syn::Result<TokenStre
 
 /// Implement `trait Fatality` for `who`.
 fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
-    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    let fatality_trait =
+        abs_helper_path(Ident::new("Fatality", who.span()), who.span());
     let resolution = match resolution {
         ResolutionMode::Forward(_fwd, field) => {
             let field = field

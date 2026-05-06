@@ -108,7 +108,9 @@ fn main() {
         Ok(JfyiKaboom::Iffy(Inner::ChuckleOn))
     );
 
-    assert!(TransparentStructWrapper::from(game_over().unwrap_err()).is_fatal());
+    assert!(
+        TransparentStructWrapper::from(game_over().unwrap_err()).is_fatal()
+    );
     assert_matches!(
         TransparentStructWrapper::from(game_over().unwrap_err()).split(),
         Err(FatalTransparentStructWrapper {
@@ -116,7 +118,9 @@ fn main() {
         })
     );
 
-    assert!(!TransparentStructWrapper::from(laughable().unwrap_err()).is_fatal());
+    assert!(
+        !TransparentStructWrapper::from(laughable().unwrap_err()).is_fatal()
+    );
     assert_matches!(
         TransparentStructWrapper::from(laughable().unwrap_err()).split(),
         Ok(JfyiTransparentStructWrapper {
@@ -150,7 +154,9 @@ fn main() {
         )))
     );
 
-    assert!(!TransparentTupleStructWrapper(laughable().unwrap_err()).is_fatal());
+    assert!(
+        !TransparentTupleStructWrapper(laughable().unwrap_err()).is_fatal()
+    );
     assert_matches!(
         TransparentTupleStructWrapper(laughable().unwrap_err()).split(),
         Ok(JfyiTransparentTupleStructWrapper(JfyiKaboom::Iffy(

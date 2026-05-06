@@ -1,9 +1,9 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{
-    Attribute, DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct, LitBool, Member, Pat,
-    PatIdent, PatPath, PatRest, PatStruct, PatTupleStruct, PatWild, Path, PathArguments,
-    PathSegment, Token, Variant,
+    Attribute, DataEnum, DataStruct, FieldPat, Fields, ItemEnum, ItemStruct,
+    LitBool, Member, Pat, PatIdent, PatPath, PatRest, PatStruct,
+    PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token, Variant,
     parse::{Parse, ParseStream},
     parse_quote,
     punctuated::Punctuated,
@@ -96,7 +96,8 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
     let found_crate = if cfg!(test) {
         FoundCrate::Itself
     } else {
-        crate_name("fatality").expect("`fatality` must be present in `Cargo.toml` for use. q.e.d")
+        crate_name("fatality")
+            .expect("`fatality` must be present in `Cargo.toml` for use. q.e.d")
     };
     let path: Path = match found_crate {
         FoundCrate::Itself => parse_quote!( crate::#what ),
@@ -108,7 +109,9 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
     path
 }
 
-fn unnamed_fields_variant_pattern_constructor_binding_name(ith: usize) -> Ident {
+fn unnamed_fields_variant_pattern_constructor_binding_name(
+    ith: usize,
+) -> Ident {
     Ident::new(format!("arg_{}", ith).as_str(), Span::call_site())
 }
 
@@ -152,7 +155,9 @@ impl ResolutionMode {
         })
     }
 
-    fn extract_from_struct_attrs(strukt: &mut DeriveInput<DataStruct>) -> syn::Result<Self> {
+    fn extract_from_struct_attrs(
+        strukt: &mut DeriveInput<DataStruct>,
+    ) -> syn::Result<Self> {
         ResolutionMode::extract(&mut strukt.attrs)?.ok_or_else(|| {
             let err_msg = "missing `#[fatal(_)]` attribute for struct";
             syn::Error::new(strukt.ident.span(), err_msg)
@@ -195,7 +200,8 @@ impl Parse for ResolutionMode {
 
 impl ToTokens for ResolutionMode {
     fn to_tokens(&self, ts: &mut TokenStream) {
-        let trait_fatality = abs_helper_path(format_ident!("Fatality"), Span::call_site());
+        let trait_fatality =
+            abs_helper_path(format_ident!("Fatality"), Span::call_site());
         let tmp = match self {
             Self::WithExplicitBool(boolean) => {
                 let value = boolean.value;
@@ -208,7 +214,9 @@ impl ToTokens for ResolutionMode {
                 {
                     syn::Member::Named(ident) => ident,
                     syn::Member::Unnamed(idx) => {
-                        unnamed_fields_variant_pattern_constructor_binding_name(idx.index as usize)
+                        unnamed_fields_variant_pattern_constructor_binding_name(
+                            idx.index as usize,
+                        )
                     }
                 };
                 quote! {
@@ -250,7 +258,10 @@ fn to_pattern(
     };
     let path = Path {
         leading_colon: None,
-        segments: Punctuated::<PathSegment, PathSep>::from_iter(vec![me, name.clone().into()]),
+        segments: Punctuated::<PathSegment, PathSep>::from_iter(vec![
+            me,
+            name.clone().into(),
+        ]),
     };
     let is_transparent = attrs
         .iter()
@@ -270,7 +281,9 @@ fn to_pattern(
         Fields::Named(fields) => {
             let (fields, resolution) = {
                 let (fwd_keyword, ident) = match &requested_resolution_mode {
-                    ResolutionMode::Forward(keyword, ident) => (Some(*keyword), Some(ident)),
+                    ResolutionMode::Forward(keyword, ident) => {
+                        (Some(*keyword), Some(ident))
+                    }
                     ResolutionMode::WithExplicitBool(_) => (None, None),
                 };
                 if let Some(fwd_keyword) = fwd_keyword {
@@ -386,7 +399,9 @@ fn to_pattern(
                     };
 
                     let pat_capture_ident =
-                        unnamed_fields_variant_pattern_constructor_binding_name(fwd_idx);
+                        unnamed_fields_variant_pattern_constructor_binding_name(
+                            fwd_idx,
+                        );
                     // create a pattern like this: `_, _, _, inner, ..`
                     let mut field_pats = std::iter::repeat_n(
                         Pat::Wild(PatWild {
@@ -407,7 +422,10 @@ fn to_pattern(
 
                     (
                         field_pats,
-                        ResolutionMode::Forward(fwd_keyword, Some(fwd_idx.into())),
+                        ResolutionMode::Forward(
+                            fwd_keyword,
+                            Some(fwd_idx.into()),
+                        ),
                     )
                 } else {
                     (vec![], requested_resolution_mode)

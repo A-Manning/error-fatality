@@ -17,7 +17,9 @@ mod component {
     #[test]
     fn parse_full_attr() {
         let tokens = quote! { #[fatal(forward)] };
-        let mut input = syn::parse::Parser::parse2(syn::Attribute::parse_outer, tokens).unwrap();
+        let mut input =
+            syn::parse::Parser::parse2(syn::Attribute::parse_outer, tokens)
+                .unwrap();
         let attr = input.pop().unwrap();
         let result = attr.parse_args::<ResolutionMode>();
         assert_matches!(result, Ok(ResolutionMode::Forward(..)));

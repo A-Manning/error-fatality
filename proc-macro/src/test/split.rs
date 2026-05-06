@@ -6,13 +6,7 @@ use quote::quote;
 fn run_test(input: TokenStream, expected: TokenStream) {
     let output = crate::derive_split2(input);
     let output = output.to_string();
-    println!(
-        r##">>>>>>>>>>>>>>>>>>>
-{}
->>>>>>>>>>>>>>>>>>>"##,
-        output.as_str()
-    );
-    assert_eq!(output, expected.to_string(),);
+    assert_eq!(output, expected.to_string());
 }
 
 #[test]
