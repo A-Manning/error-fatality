@@ -70,7 +70,7 @@ help: the trait `std::error::Error` is not implemented for `FatalKaboom`
 38 | |     Bobo(#[from] Bobo),
 39 | | }
    | |_^
-note: required by a bound in `fatality::Split::Fatal`
+note: required by a bound in `error_fatality::Split::Fatal`
   --> lib.rs
    |
    |     type Fatal: std::error::Error + Send + Sync + 'static;
@@ -100,7 +100,7 @@ help: the trait `std::error::Error` is not implemented for `JfyiKaboom`
 38 | |     Bobo(#[from] Bobo),
 39 | | }
    | |_^
-note: required by a bound in `fatality::Split::Jfyi`
+note: required by a bound in `error_fatality::Split::Jfyi`
   --> lib.rs
    |
    |     type Jfyi: std::error::Error + Send + Sync + 'static;

@@ -1,10 +1,8 @@
 
-[![crates.io](https://img.shields.io/crates/v/fatality.svg)](https://crates.io/crates/fatality)
-[![CI](https://ci.fff.rs/api/v1/teams/main/pipelines/fatality/jobs/master-validate/badge)](https://ci.fff.rs/teams/main/pipelines/fatality/jobs/master-validate)
-![commits-since](https://img.shields.io/github/commits-since/drahnr/fatality/latest.svg)
-[![rust 1.51.0+ badge](https://img.shields.io/badge/rust-1.51.0+-93450a.svg)](https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html)
+[![crates.io](https://img.shields.io/crates/v/error-fatality.svg)](https://crates.io/crates/error-fatality)
+![commits-since](https://img.shields.io/github/commits-since/A-Manning/error-fatality/latest.svg)
 
-# fatality
+# error-fatality
 
 A generative approach to creating _fatal_ and _non-fatal_ errors.
 
@@ -13,8 +11,8 @@ and any unknown annotations will be passed to that.
 
 ## Motivation
 
-For large scale mono-repos, with subsystems it eventually becomes very tedious to `match`
-against nested error variants defined with `thiserror`. Using `anyhow` or `eyre` - while it being an application - also comes with an unmanagable amount of pain for medium-large scale code bases.
+For large scale mono-repos, with subsystems it eventually becomes very tedious to `match` against nested error variants defined with `thiserror`.
+Using `anyhow` or `eyre` - while it being an application - also comes with an unmanagable amount of pain for medium-large scale code bases.
 
 `fatality` is a solution to this, by extending `thiserror::Error` with annotations to declare certain variants as `fatal`, or `forward` the fatality extraction to an inner error type.
 
@@ -33,7 +31,7 @@ The derive macro implements them, and can defer calls, based on `thiserror` anno
 
 
 ```rust
-use fatality::Fatality;
+use error_fatality::Fatality;
 use thiserror::Error;
 
 #[derive(Debug, Error, Fatality)]
@@ -63,7 +61,7 @@ enum OhMy {
 ```
 
 ```rust
-use fatality::{Fatality, Split};
+use error_fatality::{Fatality, Split};
 use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
@@ -112,7 +110,7 @@ By default, `#[derive(Split)]` will generate a `#[derive(::std::fmt::Debug, ::th
 `#[derive(Split)]` also copies all other attributes.
 
 ```rust
-use fatality::{Fatality, Split};
+use error_fatality::{Fatality, Split};
 use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
@@ -128,7 +126,7 @@ generates
 #[derive(::std::fmt::Debug, ::thiserror::Error)]
 #[error(transparent)]
 #[repr(transparent)]
-struct FatalOuter(#[from] <Inner as crate::Split>::Fatal);
+struct FatalOuter(#[from] <Inner as error_fatality::Split>::Fatal);
 
 #[automatically_derived]
 impl ::std::convert::From<FatalOuter> for Outer {
@@ -140,7 +138,7 @@ impl ::std::convert::From<FatalOuter> for Outer {
 #[derive(::std::fmt::Debug, ::thiserror::Error)]
 #[error(transparent)]
 #[repr(transparent)]
-struct JfyiOuter(#[from] <Inner as crate::Split>::Jfyi);
+struct JfyiOuter(#[from] <Inner as error_fatality::Split>::Jfyi);
 
 #[automatically_derived]
 impl ::std::convert::From<JfyiOuter> for Outer {
@@ -154,7 +152,7 @@ impl crate::Split for Outer {
     type Fatal = FatalOuter;
     type Jfyi = JfyiOuter;
     fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
-        match crate :: Split :: split (self . 0) {
+        match error_fatality :: Split :: split (self . 0) {
             Err(fatal) => Err(FatalOuter { 0: fatal, }),
             Ok(jfyi) => Ok(JfyiOuter { 0: jfyi, }),
         }
@@ -166,7 +164,7 @@ It is possible to manually specify the attributes that will be applied to
 each of the generated error variants, as well as the identifiers used:
 
 ```rust
-use fatality::{Fatality, Split};
+use error_fatality::{Fatality, Split};
 use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]
@@ -205,7 +203,7 @@ generates
 #[derive(Debug, Error)]
 #[error(transparent)]
 #[repr(transparent)]
-struct CustomFatalIdent(#[from] <Inner as crate::Split>::Fatal);
+struct CustomFatalIdent(#[from] <Inner as error_fatality::Split>::Fatal);
 
 #[automatically_derived]
 impl ::std::convert::From<CustomFatalIdent> for Outer {
@@ -217,7 +215,7 @@ impl ::std::convert::From<CustomFatalIdent> for Outer {
 #[derive(Debug, Default, Error)]
 #[error("non-fatal error: {0}")]
 #[repr(transparent)]
-struct CustomJfyiIdent(#[from] <Inner as crate::Split>::Jfyi);
+struct CustomJfyiIdent(#[from] <Inner as error_fatality::Split>::Jfyi);
 
 #[automatically_derived]
 impl ::std::convert::From<CustomJfyiIdent> for Outer {
@@ -231,7 +229,7 @@ impl crate::Split for Outer {
     type Fatal = CustomFatalIdent;
     type Jfyi = CustomJfyiIdent;
     fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
-        match crate :: Split :: split (self . 0) {
+        match error_fatality :: Split :: split (self . 0) {
             Err(fatal) => Err(CustomFatalIdent { 0: fatal, }),
             Ok(jfyi) => Ok(CustomJfyiIdent { 0: jfyi, }),
         }

@@ -96,8 +96,9 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
     let found_crate = if cfg!(test) {
         FoundCrate::Itself
     } else {
-        crate_name("fatality")
-            .expect("`fatality` must be present in `Cargo.toml` for use. q.e.d")
+        crate_name("error-fatality").expect(
+            "`error-fatality` must be present in `Cargo.toml` for use. q.e.d",
+        )
     };
     let path: Path = match found_crate {
         FoundCrate::Itself => parse_quote!( crate::#what ),

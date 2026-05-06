@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use fatality::{Fatality, Nested, Split};
+use error_fatality::{Fatality, Nested, Split};
 use thiserror::Error;
 
 #[derive(Debug, Error, Fatality, Split)]

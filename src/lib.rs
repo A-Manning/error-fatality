@@ -11,7 +11,7 @@
 //!
 //! Stands on the shoulders of `thiserror`.
 
-pub use fatality_proc_macro::{Fatality, Split};
+pub use error_fatality_proc_macro::{Fatality, Split};
 
 /// Determine the fatality of an error.
 pub trait Fatality: std::error::Error + std::fmt::Debug {

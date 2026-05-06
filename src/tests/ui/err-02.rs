@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_matches::assert_matches;
-use fatality::Fatality;
+use error_fatality::Fatality;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

@@ -14,7 +14,7 @@ print_stderr = "deny"
 let_underscore_drop = "deny"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     "Ash Manning <10554686+A-Manning@users.noreply.github.com>",
     "Bernhard Schuster <bernhard@ahoi.io>",
@@ -22,12 +22,12 @@ authors = [
 edition = "2024"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/drahnr/fatality.git"
+repository = "https://github.com/A-Manning/error-fatality.git"
 
 [workspace.dependencies]
 assert_matches = "1"
 expander = "2"
-fatality-proc-macro = { path = "./proc-macro" }
+error-fatality-proc-macro = { version = "0.1.2", path = "./proc-macro" }
 indexmap = "2"
 log = "0.4"
 proc-macro-crate = "3.1"

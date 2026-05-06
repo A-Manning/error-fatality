@@ -26,7 +26,7 @@ workspace = true
 authors = { workspace = true }
 description = "Fatality extension to crate thiserror - proc-macro part"
 edition = { workspace = true }
-name = "fatality-proc-macro"
+name = "error-fatality-proc-macro"
 repository = { workspace = true }
 version = { workspace = true }
 license = { workspace = true }
