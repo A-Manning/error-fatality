@@ -147,6 +147,206 @@ fn regression() {
 }
 
 #[test]
+fn generics_and_bounds_implicit() {
+    run_test(
+        quote! {
+            pub enum Outer<'a, Inner> where
+                Inner: std::error::Error
+            {
+                #[error(transparent)]
+                #[fatal(true)]
+                Fatal(&'a Inner),
+                #[error(transparent)]
+                #[fatal(false)]
+                Jfyi(&'a Inner),
+            }
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum FatalOuter<'a, Inner> where Inner: std::error::Error {
+                #[error(transparent)]
+                Fatal(&'a Inner)
+            }
+
+            #[automatically_derived]
+            impl<'a, Inner> ::std::convert::From< FatalOuter<'a, Inner> > for
+                Outer<'a, Inner> where Inner: std::error::Error
+            {
+                fn from(fatal: FatalOuter<'a, Inner>) -> Self {
+                    match fatal {
+                        FatalOuter::Fatal(arg_0) => Self::Fatal(arg_0),
+                    }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum JfyiOuter<'a, Inner> where Inner: std::error::Error {
+                #[error(transparent)]
+                Jfyi(&'a Inner)
+            }
+
+            #[automatically_derived]
+            impl<'a, Inner> ::std::convert::From< JfyiOuter<'a, Inner> > for
+                Outer<'a, Inner> where Inner: std::error::Error
+            {
+                fn from(jfyi: JfyiOuter<'a, Inner>) -> Self {
+                    match jfyi {
+                        JfyiOuter::Jfyi(arg_0) => Self::Jfyi(arg_0),
+                    }
+                }
+            }
+
+            #[automatically_derived]
+            impl<'a, Inner> crate::Split for Outer<'a, Inner> where
+                Inner: std::error::Error
+            {
+                type Fatal = FatalOuter<'a, Inner>;
+                type Jfyi = JfyiOuter<'a, Inner>;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match self {
+                        Self::Fatal(arg_0) => Err(FatalOuter::Fatal(arg_0)),
+                        Self::Jfyi(arg_0) => Ok(JfyiOuter::Jfyi(arg_0)),
+                    }
+                }
+            }
+        },
+    );
+    run_test(
+        quote! {
+            #[error(transparent)]
+            #[fatal(forward)]
+            struct Outer<'a, T>(Inner<'a, T>) where T: std::error::Error;
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            #[error(transparent)]
+            struct FatalOuter<'a, T>(<Inner<'a, T> as crate::Split>::Fatal) where T: std::error::Error;
+
+            #[automatically_derived]
+            impl<'a, T> ::std::convert::From< FatalOuter<'a, T> > for
+                Outer<'a, T> where T: std::error::Error
+            {
+                fn from(fatal: FatalOuter<'a, T>) -> Self {
+                    Self { 0: <Inner<'a, T> as ::std::convert::From<_>>::from(fatal.0), }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            #[error(transparent)]
+            struct JfyiOuter<'a, T>(<Inner<'a, T> as crate::Split>::Jfyi) where T: std::error::Error;
+
+            #[automatically_derived]
+            impl<'a, T> ::std::convert::From< JfyiOuter<'a, T> > for
+                Outer<'a, T> where T: std::error::Error
+            {
+                fn from(jfyi: JfyiOuter<'a, T>) -> Self {
+                    Self { 0: <Inner<'a, T> as ::std::convert::From<_>>::from(jfyi.0), }
+                }
+            }
+
+            #[automatically_derived]
+            impl<'a, T> crate::Split for Outer<'a, T> where
+                T: std::error::Error
+            {
+                type Fatal = FatalOuter<'a, T>;
+                type Jfyi = JfyiOuter<'a, T>;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match crate :: Split :: split (self . 0) {
+                        Err(fatal) => Err(FatalOuter { 0: fatal, }),
+                        Ok(jfyi) => Ok(JfyiOuter { 0: jfyi, }),
+                    }
+                }
+            }
+        },
+    )
+}
+
+#[test]
+fn generics_and_bounds_explicit() {
+    run_test(
+        quote! {
+            #[split(
+                fatal(
+                    bound(Fatal: std::error::Error),
+                    generics('a, Fatal),
+                ),
+                jfyi(
+                    bound(Jfyi: std::error::Error),
+                    generics('a, Jfyi),
+                )
+            )]
+            pub enum E<'a, Fatal, Jfyi> where
+                Fatal: std::error::Error,
+                Jfyi: std::error::Error,
+            {
+                #[error(transparent)]
+                #[fatal(true)]
+                Fatal(&'a Fatal),
+                #[error(transparent)]
+                #[fatal(false)]
+                Jfyi(&'a Jfyi),
+            }
+        },
+        quote! {
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum FatalE<'a, Fatal> where Fatal: std::error::Error {
+                #[error(transparent)]
+                Fatal(&'a Fatal)
+            }
+
+            #[automatically_derived]
+            impl<'a, Fatal, Jfyi> ::std::convert::From<
+                FatalE<'a, Fatal>
+            > for E<'a, Fatal, Jfyi> where
+                Fatal: std::error::Error,
+                Jfyi: std::error::Error,
+            {
+                fn from(fatal: FatalE<'a, Fatal>) -> Self {
+                    match fatal {
+                        FatalE::Fatal(arg_0) => Self::Fatal(arg_0),
+                    }
+                }
+            }
+
+            #[derive(::std::fmt::Debug, ::thiserror::Error)]
+            pub enum JfyiE<'a, Jfyi> where Jfyi: std::error::Error {
+                #[error(transparent)]
+                Jfyi(&'a Jfyi)
+            }
+
+            #[automatically_derived]
+            impl<'a, Fatal, Jfyi> ::std::convert::From<
+                JfyiE<'a, Jfyi>
+            > for E<'a, Fatal, Jfyi> where
+                Fatal: std::error::Error,
+                Jfyi: std::error::Error,
+            {
+                fn from(jfyi: JfyiE<'a, Jfyi>) -> Self {
+                    match jfyi {
+                        JfyiE::Jfyi(arg_0) => Self::Jfyi(arg_0),
+                    }
+                }
+            }
+
+            #[automatically_derived]
+            impl<'a, Fatal, Jfyi> crate::Split for E<'a, Fatal, Jfyi> where
+                Fatal: std::error::Error,
+                Jfyi: std::error::Error,
+            {
+                type Fatal = FatalE<'a, Fatal>;
+                type Jfyi = JfyiE<'a, Jfyi>;
+                fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                    match self {
+                        Self::Fatal(arg_0) => Err(FatalE::Fatal(arg_0)),
+                        Self::Jfyi(arg_0) => Ok(JfyiE::Jfyi(arg_0)),
+                    }
+                }
+            }
+        },
+    )
+}
+
+#[test]
 fn no_attrs() {
     let output = quote! {
         pub enum FatalX {
@@ -420,7 +620,7 @@ fn cloned_attributes() {
             #[automatically_derived]
             impl ::std::convert::From<FatalOuter> for Outer {
                 fn from(fatal: FatalOuter) -> Self {
-                    Self { 0: Inner::from(fatal.0), }
+                    Self { 0: <Inner as ::std::convert::From<_>>::from(fatal.0), }
                 }
             }
 
@@ -432,7 +632,7 @@ fn cloned_attributes() {
             #[automatically_derived]
             impl ::std::convert::From<JfyiOuter> for Outer {
                 fn from(jfyi: JfyiOuter) -> Self {
-                    Self { 0: Inner::from(jfyi.0), }
+                    Self { 0: <Inner as ::std::convert::From<_>>::from(jfyi.0), }
                 }
             }
 
@@ -492,7 +692,7 @@ fn all_attr_options() {
             #[automatically_derived]
             impl ::std::convert::From<CustomFatalIdent> for Outer {
                 fn from(fatal: CustomFatalIdent) -> Self {
-                    Self { 0: Inner::from(fatal.0), }
+                    Self { 0: <Inner as ::std::convert::From<_>>::from(fatal.0), }
                 }
             }
 
@@ -504,7 +704,7 @@ fn all_attr_options() {
             #[automatically_derived]
             impl ::std::convert::From<CustomJfyiIdent> for Outer {
                 fn from(jfyi: CustomJfyiIdent) -> Self {
-                    Self { 0: Inner::from(jfyi.0), }
+                    Self { 0: <Inner as ::std::convert::From<_>>::from(jfyi.0), }
                 }
             }
 

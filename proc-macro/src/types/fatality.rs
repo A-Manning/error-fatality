@@ -1,16 +1,22 @@
 use indexmap::IndexMap;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DataEnum, DataStruct, Ident, Pat, Variant};
+use syn::{
+    DataEnum, DataStruct, Ident, ImplGenerics, Pat, TypeGenerics, Variant,
+    WhereClause,
+};
 
 use crate::types::{
     DeriveInput, ResolutionMode, abs_helper_path, enum_variant_to_pattern,
     struct_to_pattern,
 };
 
-/// Implement `trait Fatality` for `who`.
+/// Implement `trait Fatality` for `ident`.
 fn enum_impl(
-    who: &Ident,
+    ident: &Ident,
+    impl_generics: &ImplGenerics,
+    type_generics: &TypeGenerics,
+    where_clause: Option<&WhereClause>,
     pattern_lut: &IndexMap<Variant, Pat>,
     resolution_lut: &IndexMap<Variant, ResolutionMode>,
 ) -> TokenStream {
@@ -18,10 +24,10 @@ fn enum_impl(
     let resolution = resolution_lut.values();
 
     let fatality_trait =
-        abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+        abs_helper_path(Ident::new("Fatality", ident.span()), ident.span());
     quote! {
         #[automatically_derived]
-        impl #fatality_trait for #who {
+        impl #impl_generics #fatality_trait for #ident #type_generics #where_clause {
             fn is_fatal(&self) -> bool {
                 match self {
                     #( #pat => #resolution, )*
@@ -54,14 +60,29 @@ pub(crate) fn enum_gen(
         resolution_lut.insert(variant.clone(), resolution_mode);
         pattern_lut.insert(variant.clone(), pattern);
     }
+    let (impl_generics, type_generics, where_clause) =
+        item.generics.split_for_impl();
 
-    Ok(enum_impl(&item.ident, &pattern_lut, &resolution_lut))
+    Ok(enum_impl(
+        &item.ident,
+        &impl_generics,
+        &type_generics,
+        where_clause,
+        &pattern_lut,
+        &resolution_lut,
+    ))
 }
 
-/// Implement `trait Fatality` for `who`.
-fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
+/// Implement `trait Fatality` for `ident`.
+fn struct_impl(
+    ident: &Ident,
+    impl_generics: &ImplGenerics,
+    type_generics: &TypeGenerics,
+    where_clause: Option<&WhereClause>,
+    resolution: &ResolutionMode,
+) -> TokenStream {
     let fatality_trait =
-        abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+        abs_helper_path(Ident::new("Fatality", ident.span()), ident.span());
     let resolution = match resolution {
         ResolutionMode::Forward(_fwd, field) => {
             let field = field
@@ -77,7 +98,7 @@ fn struct_impl(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
     };
     quote! {
         #[automatically_derived]
-        impl #fatality_trait for #who {
+        impl #impl_generics #fatality_trait for #ident #type_generics #where_clause {
             fn is_fatal(&self) -> bool {
                 #resolution
             }
@@ -91,6 +112,14 @@ pub(crate) fn struct_gen(
     let resolution_mode = ResolutionMode::extract_from_struct_attrs(&mut item)?;
 
     let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+    let (impl_generics, type_generics, where_clause) =
+        item.generics.split_for_impl();
 
-    Ok(struct_impl(&item.ident, &resolution_mode))
+    Ok(struct_impl(
+        &item.ident,
+        &impl_generics,
+        &type_generics,
+        where_clause,
+        &resolution_mode,
+    ))
 }

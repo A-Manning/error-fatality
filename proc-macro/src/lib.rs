@@ -1,7 +1,7 @@
 #![deny(clippy::dbg_macro)]
 #![deny(unused_crate_dependencies)]
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use syn::spanned::Spanned;
 
 mod types;
@@ -19,37 +19,21 @@ fn fatality_inner(
         generics,
         data,
     } = syn::parse2(input)?;
-    let bail_if_has_generics =
-        |generics: &syn::Generics, span: Span| -> syn::Result<()> {
-            if !generics.params.is_empty() {
-                return Err(syn::Error::new(
-                    span,
-                    "Generics  `enum`-types are currently supported",
-                ));
-            }
-            Ok(())
-        };
     match data {
-        syn::Data::Enum(data_enum) => {
-            bail_if_has_generics(&generics, generics.span())?;
-            fatality::enum_gen(DeriveInput {
-                attrs,
-                vis,
-                ident,
-                generics,
-                data: data_enum,
-            })
-        }
-        syn::Data::Struct(data_struct) => {
-            bail_if_has_generics(&generics, generics.span())?;
-            fatality::struct_gen(DeriveInput {
-                attrs,
-                vis,
-                ident,
-                generics,
-                data: data_struct,
-            })
-        }
+        syn::Data::Enum(data_enum) => fatality::enum_gen(DeriveInput {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data: data_enum,
+        }),
+        syn::Data::Struct(data_struct) => fatality::struct_gen(DeriveInput {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data: data_struct,
+        }),
         syn::Data::Union(_) => Err(syn::Error::new(
             input_span,
             "Only `enum` and `struct` types are supported",
@@ -97,40 +81,24 @@ fn split_inner(
         generics,
         data,
     } = syn::parse2(input)?;
-    let bail_if_has_generics =
-        |generics: &syn::Generics, span: Span| -> syn::Result<()> {
-            if !generics.params.is_empty() {
-                return Err(syn::Error::new(
-                    span,
-                    "Generics  `enum`-types are currently supported",
-                ));
-            }
-            Ok(())
-        };
     match data {
-        syn::Data::Enum(data_enum) => {
-            bail_if_has_generics(&generics, generics.span())?;
-            split::enum_gen(DeriveInput {
+        syn::Data::Enum(data_enum) => split::enum_gen(DeriveInput {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data: data_enum,
+        }),
+        syn::Data::Struct(data_struct) => split::struct_gen(
+            input_span,
+            DeriveInput {
                 attrs,
                 vis,
                 ident,
                 generics,
-                data: data_enum,
-            })
-        }
-        syn::Data::Struct(data_struct) => {
-            bail_if_has_generics(&generics, generics.span())?;
-            split::struct_gen(
-                input_span,
-                DeriveInput {
-                    attrs,
-                    vis,
-                    ident,
-                    generics,
-                    data: data_struct,
-                },
-            )
-        }
+                data: data_struct,
+            },
+        ),
         syn::Data::Union(_) => Err(syn::Error::new(
             input_span,
             "Only `enum` and `struct` types are supported",
@@ -155,7 +123,7 @@ fn derive_split2(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         .unwrap()
 }
 
-#[proc_macro_derive(Split, attributes(split))]
+#[proc_macro_derive(Split, attributes(fatal, split))]
 pub fn derive_split(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = TokenStream::from(input);
     let output: TokenStream = derive_split2(input);

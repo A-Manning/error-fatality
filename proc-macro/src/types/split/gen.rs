@@ -107,6 +107,48 @@ impl ToTokens for VariantConstructor {
     }
 }
 
+fn generics(
+    split_opts: &Opts,
+    original: &syn::Generics,
+    variant: SplitVariant,
+) -> syn::Generics {
+    let where_clause = if let Some(bound) = split_opts.bound(variant) {
+        if bound.is_empty() {
+            None
+        } else {
+            Some(syn::WhereClause {
+                where_token: syn::token::Where::default(),
+                predicates: bound.clone(),
+            })
+        }
+    } else {
+        original.where_clause.clone()
+    };
+    if let Some(generics) = split_opts.generics(variant) {
+        let (lt_token, gt_token) = if generics.is_empty() {
+            (None, None)
+        } else {
+            (
+                Some(syn::token::Lt::default()),
+                Some(syn::token::Gt::default()),
+            )
+        };
+        syn::Generics {
+            lt_token,
+            params: generics.clone(),
+            gt_token,
+            where_clause,
+        }
+    } else {
+        syn::Generics {
+            lt_token: original.lt_token,
+            params: original.params.clone(),
+            gt_token: original.gt_token,
+            where_clause,
+        }
+    }
+}
+
 /// Generate the Jfyi and Fatal sub enums.
 ///
 /// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
@@ -123,6 +165,8 @@ fn enum_impl(
     let split_trait = abs_helper_path(Ident::new("Split", span), span);
 
     let original_ident = &original.ident;
+    let (original_impl_generics, original_ty_generics, original_where_clause) =
+        original.generics.split_for_impl();
 
     // Generate the splitable types:
     //   Fatal
@@ -130,6 +174,8 @@ fn enum_impl(
         .ident(SplitVariant::Fatal)
         .unwrap_or_else(|| format!("Fatal{}", original.ident));
     let fatal_ident = Ident::new(fatal_ident.as_str(), span);
+    let fatal_generics =
+        generics(&split_opts, &original.generics, SplitVariant::Fatal);
     let fatal = {
         let attrs = split_opts.split_error_attrs(
             Span::call_site(),
@@ -141,7 +187,7 @@ fn enum_impl(
             vis: original.vis.clone(),
             enum_token: original.data.enum_token,
             ident: fatal_ident.clone(),
-            generics: original.generics.clone(),
+            generics: fatal_generics.clone(),
             brace_token: original.data.brace_token,
             variants: fatal_variants.iter().cloned().collect(),
         }
@@ -152,6 +198,8 @@ fn enum_impl(
         .ident(SplitVariant::Jfyi)
         .unwrap_or_else(|| format!("Jfyi{}", original.ident));
     let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
+    let jfyi_generics =
+        generics(&split_opts, &original.generics, SplitVariant::Jfyi);
     let jfyi = {
         let attrs = split_opts.split_error_attrs(
             Span::call_site(),
@@ -163,12 +211,14 @@ fn enum_impl(
             vis: original.vis,
             enum_token: original.data.enum_token,
             ident: jfyi_ident.clone(),
-            generics: original.generics.clone(),
+            generics: jfyi_generics.clone(),
             brace_token: original.data.brace_token,
             variants: jfyi_variants.iter().cloned().collect(),
         }
     };
 
+    let (_fatal_impl_generics, fatal_ty_generics, _fatal_where_clause) =
+        fatal_generics.split_for_impl();
     let fatal_patterns = fatal_variants
         .iter()
         .map(|variant| VariantPattern(variant.clone()))
@@ -178,6 +228,8 @@ fn enum_impl(
         .map(|variant| VariantPattern(variant.clone()))
         .collect::<Vec<_>>();
 
+    let (_jfyi_impl_generics, jfyi_ty_generics, _jfyi_where_clause) =
+        jfyi_generics.split_for_impl();
     let fatal_constructors = fatal_variants
         .iter()
         .map(|variant| VariantConstructor(variant.clone()))
@@ -193,8 +245,10 @@ fn enum_impl(
         #fatal
 
         #[automatically_derived]
-        impl ::std::convert::From< #fatal_ident> for #original_ident {
-            fn from(fatal: #fatal_ident) -> Self {
+        impl #original_impl_generics ::std::convert::From<
+            #fatal_ident #fatal_ty_generics
+        > for #original_ident #original_ty_generics #original_where_clause {
+            fn from(fatal: #fatal_ident #fatal_ty_generics) -> Self {
                 match fatal {
                     // Fatal
                     #( #fatal_ident :: #fatal_patterns => Self:: #fatal_constructors, )*
@@ -205,8 +259,10 @@ fn enum_impl(
         #jfyi
 
         #[automatically_derived]
-        impl ::std::convert::From< #jfyi_ident> for #original_ident {
-            fn from(jfyi: #jfyi_ident) -> Self {
+        impl #original_impl_generics ::std::convert::From<
+            #jfyi_ident #jfyi_ty_generics
+        > for #original_ident #original_ty_generics #original_where_clause {
+            fn from(jfyi: #jfyi_ident #jfyi_ty_generics) -> Self {
                 match jfyi {
                     // JFYI
                     #( #jfyi_ident :: #jfyi_patterns => Self:: #jfyi_constructors, )*
@@ -255,9 +311,9 @@ fn enum_impl(
 
     let split_trait_impl = quote! {
         #[automatically_derived]
-        impl #split_trait for #original_ident {
-            type Fatal = #fatal_ident;
-            type Jfyi = #jfyi_ident;
+        impl #original_impl_generics #split_trait for #original_ident #original_ty_generics # original_where_clause {
+            type Fatal = #fatal_ident #fatal_ty_generics;
+            type Jfyi = #jfyi_ident #jfyi_ty_generics;
 
             fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
                 match self {
@@ -344,6 +400,8 @@ fn struct_impl(
     let split_trait = abs_helper_path(Ident::new("Split", span), span);
 
     let original_ident = original.ident.clone();
+    let (original_impl_generics, original_ty_generics, original_where_clause) =
+        original.generics.split_for_impl();
 
     let split_field = original.data.fields.iter().nth(split_field_idx).unwrap();
     let split_field_projector: syn::Member = match split_field.ident.clone() {
@@ -358,6 +416,8 @@ fn struct_impl(
         .ident(SplitVariant::Fatal)
         .unwrap_or_else(|| format!("Fatal{}", original.ident));
     let fatal_ident = Ident::new(fatal_ident.as_str(), span);
+    let fatal_generics =
+        generics(&split_opts, &original.generics, SplitVariant::Fatal);
     let fatal = {
         let attrs = split_opts.split_error_attrs(
             Span::call_site(),
@@ -386,7 +446,7 @@ fn struct_impl(
             vis: original.vis.clone(),
             struct_token: original.data.struct_token,
             ident: fatal_ident.clone(),
-            generics: original.generics.clone(),
+            generics: fatal_generics.clone(),
             fields,
             semi_token: original.data.semi_token,
         }
@@ -396,6 +456,8 @@ fn struct_impl(
         .ident(SplitVariant::Jfyi)
         .unwrap_or_else(|| format!("Jfyi{}", original.ident));
     let jfyi_ident = Ident::new(jfyi_ident.as_str(), span);
+    let jfyi_generics =
+        generics(&split_opts, &original.generics, SplitVariant::Jfyi);
     let jfyi = {
         let attrs = split_opts.split_error_attrs(
             Span::call_site(),
@@ -424,11 +486,16 @@ fn struct_impl(
             vis: original.vis.clone(),
             struct_token: original.data.struct_token,
             ident: jfyi_ident.clone(),
-            generics: original.generics.clone(),
+            generics: jfyi_generics.clone(),
             fields,
             semi_token: original.data.semi_token,
         }
     };
+
+    let (_fatal_impl_generics, fatal_ty_generics, _fatal_where_clause) =
+        fatal_generics.split_for_impl();
+    let (_jfyi_impl_generics, jfyi_ty_generics, _jfyi_where_clause) =
+        jfyi_generics.split_for_impl();
 
     let mut ts = TokenStream::new();
 
@@ -454,11 +521,13 @@ fn struct_impl(
         #fatal
 
         #[automatically_derived]
-        impl ::std::convert::From< #fatal_ident> for #original_ident {
-            fn from(fatal: #fatal_ident) -> Self {
+        impl #original_impl_generics ::std::convert::From<
+            #fatal_ident #fatal_ty_generics
+        > for #original_ident #original_ty_generics #original_where_clause {
+            fn from(fatal: #fatal_ident #fatal_ty_generics) -> Self {
                 Self {
                     #(#non_split_field_projectors: fatal.#non_split_field_projectors,)*
-                    #split_field_projector: #split_field_ty::from(fatal.#split_field_projector),
+                    #split_field_projector: <#split_field_ty as ::std::convert::From<_>>::from(fatal.#split_field_projector),
                 }
             }
         }
@@ -466,11 +535,13 @@ fn struct_impl(
         #jfyi
 
         #[automatically_derived]
-        impl ::std::convert::From< #jfyi_ident> for #original_ident {
-            fn from(jfyi: #jfyi_ident) -> Self {
+        impl #original_impl_generics ::std::convert::From<
+            #jfyi_ident #jfyi_ty_generics
+        > for #original_ident #original_ty_generics #original_where_clause {
+            fn from(jfyi: #jfyi_ident #jfyi_ty_generics) -> Self {
                 Self {
                     #(#non_split_field_projectors: jfyi.#non_split_field_projectors,)*
-                    #split_field_projector: #split_field_ty::from(jfyi.#split_field_projector),
+                    #split_field_projector: <#split_field_ty as ::std::convert::From<_>>::from(jfyi.#split_field_projector),
                 }
             }
         }
@@ -478,9 +549,9 @@ fn struct_impl(
 
     let split_trait_impl = quote! {
         #[automatically_derived]
-        impl #split_trait for #original_ident {
-            type Fatal = #fatal_ident;
-            type Jfyi = #jfyi_ident;
+        impl #original_impl_generics #split_trait for #original_ident #original_ty_generics #original_where_clause {
+            type Fatal = #fatal_ident #fatal_ty_generics;
+            type Jfyi = #jfyi_ident #jfyi_ty_generics;
 
             fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
                 match #split_trait::split(self.#split_field_projector) {

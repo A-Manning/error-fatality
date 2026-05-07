@@ -1,3 +1,4 @@
+#[derive(Clone, Copy, Debug)]
 enum SplitVariant {
     Fatal,
     Jfyi,

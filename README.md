@@ -237,3 +237,34 @@ impl crate::Split for Outer {
 }
 ```
 
+Generic type parameters and bounds can be applied to generated errors via the
+`bound(_)` and `generics` options, eg.
+
+```rust
+use error_fatality::{Fatality, Split};
+use thiserror::Error;
+
+#[derive(Debug, Error, Fatality, Split)]
+#[split(
+    fatal(
+        bound(Fatal: std::error::Error),
+        generics('a, Fatal),
+    ),
+    jfyi(
+        bound(Jfyi: std::error::Error),
+        generics('a, Jfyi),
+    )
+)]
+pub enum E<'a, Fatal, Jfyi> where
+    Fatal: std::error::Error,
+    Jfyi: std::error::Error,
+{
+    #[error(transparent)]
+    #[fatal(true)]
+    F(&'a Fatal),
+    #[error(transparent)]
+    #[fatal(false)]
+    J(&'a Jfyi),
+}
+```
+

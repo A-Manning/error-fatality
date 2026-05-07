@@ -23,8 +23,8 @@ pub trait Fatality: std::error::Error + std::fmt::Debug {
 /// Allows to split an error into two types - a fatal
 /// and a informational enum error type, that can be further consumed.
 pub trait Split: std::error::Error + std::fmt::Debug {
-    type Fatal: std::error::Error + Send + Sync + 'static;
-    type Jfyi: std::error::Error + Send + Sync + 'static;
+    type Fatal: std::error::Error;
+    type Jfyi: std::error::Error;
 
     /// Split the error into it's fatal and non-fatal variants.
     ///
